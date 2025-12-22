@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>Crafting Verwaltung</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+/* container width */
+.container { max-width:80vw; }
+
+/* theme */
+:root{
+  --bg: #f8f9fa;
+  --card-bg: #fff;
+  --muted: #6c757d;
+  --border: #e9ecef;
+  --text: #212529;
+  --table-odd: #f8fafc;
+  --accent: #0d6efd;
+  --shadow: rgba(0,0,0,0.04);
+  --qty-width: 90px;
+}
+
+body { background:var(--bg); color:var(--text); font-size:0.95rem; }
+.card { background:var(--card-bg); border:1px solid var(--border); box-shadow:0 1px 2px var(--shadow); }
+.card .card-header { background:transparent; border-bottom:1px solid var(--border); }
+.table-compact td, .table-compact th { padding:.35rem .5rem; vertical-align:middle; font-size:.92rem; border-color:var(--border); }
+
+/* zebra */
+.table-zebra tr[data-data="1"].zebra-odd { background-color: var(--table-odd) !important; }
+.table-zebra tr[data-data="1"].zebra-even { background-color: var(--card-bg) !important; }
+
+.drag-handle { cursor:grab; color:#6c757d; }
+.drag-handle:hover { color:var(--accent); }
+
+.compact-input { font-size:0.85rem; padding:0.25rem 0.5rem; max-width:160px; }
+.hidden { display:none; }
+
+.calc-panel{ border:1px dashed var(--border); padding:12px; border-radius:8px; background:var(--card-bg); }
+.calc-grid { display:grid; grid-template-columns: 1fr; gap:10px; }
+.calc-section { border:1px solid var(--border); padding:10px; border-radius:8px; background:#fff; }
+.calc-section .section-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+
+/* unified qty layout: label above input, button next to input, both aligned */
+.qty-row { display:flex; gap:8px; align-items:flex-end; }
+.qty-row .qty-col { display:flex; flex-direction:column; }
+.qty-row .qty-col label { font-size:.8rem; color:var(--muted); margin-bottom:4px; }
+.qty-input { width: var(--qty-width); min-width:60px; }
+
+.add-btn { width:44px; height:36px; display:inline-flex; align-items:center; justify-content:center; padding:0; }
+
+/* calc list headers: qty first then name */
+.calc-list-header { display:flex; gap:8px; font-weight:600; font-size:.9rem; padding:6px 2px; border-bottom:1px dashed var(--border); margin-bottom:6px; align-items:center; }
+.calc-list-header .col-qty { width: var(--qty-width); text-align:left; }
+.calc-list-header .col-name { flex:1; padding-left:6px; }
+
+/* calc items: qty - name - delete */
+.calc-item { display:flex; align-items:center; gap:10px; margin-bottom:8px; width:100%; }
+.calc-item .col-qty { width: var(--qty-width); display:flex; align-items:center; }
+.calc-item .col-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:6px; }
+.calc-item .col-action { width:44px; text-align:right; }
+
+.calc-actions { display:flex; gap:8px; align-items:center; }
+
+/* steps */
+.step { border-left:4px solid var(--accent); padding:10px 14px; margin-bottom:10px; border-radius:6px; background:linear-gradient(90deg, rgba(13,110,253,0.03), transparent); }
+.step .meta { font-size:.92rem; color:var(--muted); margin-bottom:6px; }
+.step .meta .badge { font-weight:600; background:transparent; border:1px dashed var(--border); color:var(--muted); margin-left:6px; padding:.2rem .4rem; border-radius:6px; }
+
+.tree { margin:0; padding-left:0; }
+.tree ul { list-style:none; margin:0; padding-left:1.2rem; border-left:1px solid var(--border); }
+.tree li { margin:8px 0; padding-left:8px; position:relative; }
+.tree .node { display:inline-block; padding:6px 10px; border-radius:8px; background:#fff; border:1px solid var(--border); box-shadow:0 1px 1px rgba(0,0,0,0.02); }
+
+#toastContainer { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:1080; }
+
+@media (max-width: 1100px) { .container{ max-width:96vw; } }
+@media (max-width: 768px) {
+  .qty-row { flex-direction:column; align-items:stretch; }
+  .add-btn { width:100%; height:38px; }
+  .qty-input { width:100% !important; }
+  :root{ --qty-width:100px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container my-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="m-0">Crafting Verwaltung</h4>
+    <div class="d-flex gap-2">
+      <button id="exportAllBtn" class="btn btn-sm btn-outline-secondary" title="Exportiere alle Daten"><i class="bi bi-download"></i> Export</button>
+      <label class="btn btn-sm btn-outline-secondary mb-0" title="Importiere gespeicherte Daten">
+        <i class="bi bi-upload"></i> Import
+        <input id="importFile" type="file" accept=".json" style="display:none">
+      </label>
+      <button class="btn btn-sm btn-danger" onclick="clearStorage()"><i class="bi bi-trash"></i> Alles löschen</button>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+    <li class="nav-item" role="presentation"><button id="tabCalcBtn" class="nav-link active" data-bs-toggle="tab" data-bs-target="#calc" type="button">Kalkulator</button></li>
+    <li class="nav-item" role="presentation"><button id="tabRecipesBtn" class="nav-link" data-bs-toggle="tab" data-bs-target="#recipes" type="button">Rezepte</button></li>
+    <li class="nav-item" role="presentation"><button id="tabDataBtn" class="nav-link" data-bs-toggle="tab" data-bs-target="#data" type="button">Basis-Daten</button></li>
+  </ul>
+
+  <div class="tab-content mt-3">
+    <!-- Kalkulator -->
+    <div class="tab-pane fade show active" id="calc">
+      <div class="row">
+        <!-- left: controls -->
+        <div class="col-lg-5 mb-3">
+          <div class="card">
+            <div class="card-header py-1 d-flex justify-content-between align-items-center">
+              <strong>Kalkulator</strong>
+              <div><button class="btn btn-sm btn-light" onclick="toggleCard('cardCalcSettings', this)"><i class="bi bi-arrows-collapse"></i></button></div>
+            </div>
+            <div class="card-body p-2" id="cardCalcSettings">
+              <div class="calc-panel">
+                <div class="calc-grid">
+                  <div class="calc-section">
+                    <div class="section-title">
+                      <div><strong>Ausgewählte Rezepte</strong></div>
+                      <div class="small text-muted">Anzahl editierbar</div>
+                    </div>
+                    <div class="d-flex gap-2 mb-2">
+                      <div style="flex:1">
+                        <label class="form-label small mb-1">Rezept</label>
+                        <select id="calcRecipeSelect" class="form-select form-select-sm"></select>
+                      </div>
+                      <div style="width:110px">
+                        <label class="form-label small mb-1">Anzahl</label>
+                        <input id="calcQty" type="number" min="1" class="form-control form-control-sm qty-input" value="1">
+                      </div>
+                      <div style="width:44px; align-self:end;">
+                        <button id="calcAddBtn" class="btn btn-sm btn-outline-primary add-btn" title="Hinzufügen"><i class="bi bi-plus"></i></button>
+                      </div>
+                    </div>
+                    <div class="calc-list-header">
+                      <div class="col-qty">Anzahl</div>
+                      <div class="col-name">Rezept</div>
+                    </div>
+                    <div id="calcCart" class="mb-1"></div>
+                  </div>
+                  <div class="calc-section">
+                    <div class="section-title">
+                      <div><strong>Vorhandene Items</strong></div>
+                      <div class="small text-muted">Zieht vom Bedarf ab</div>
+                    </div>
+                    <div class="d-flex gap-2 mb-2">
+                      <div style="flex:1">
+                        <label class="form-label small mb-1">Item</label>
+                        <select id="existingItemSelect" class="form-select form-select-sm"></select>
+                      </div>
+                      <div style="width:110px">
+                        <label class="form-label small mb-1">Anzahl</label>
+                        <input id="existingQty" type="number" min="1" class="form-control form-control-sm qty-input" value="1">
+                      </div>
+                      <div style="width:44px; align-self:end;">
+                        <button id="existingAddBtn" class="btn btn-sm btn-outline-secondary add-btn" title="Hinzufügen"><i class="bi bi-plus"></i></button>
+                      </div>
+                    </div>
+                    <div class="calc-list-header">
+                      <div class="col-qty">Anzahl</div>
+                      <div class="col-name">Item</div>
+                    </div>
+                    <div id="existingList"></div>
+                  </div>
+
+                  <!-- sort select -->
+                  <div class="d-flex align-items-center justify-content-between mt-2">
+                    <div style="flex:1; margin-right:12px;">
+                      <label class="form-label small mb-1">Sortierung</label>
+                      <select id="calcSortMethod" class="form-select form-select-sm w-100">
+                        <option value="dependency">Nach Rezept / Abhängigkeiten</option>
+                        <option value="location">Nach Ort</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center my-2">
+                    <div class="d-flex gap-2">
+                      <button id="calcRunBtn" class="btn btn-sm btn-success"><i class="bi bi-calculator"></i> Berechnen</button>
+                      <button id="calcClearBtn" class="btn btn-sm btn-secondary"><i class="bi bi-trash"></i> Leeren</button>
+                    </div>
+                    <button id="copyCalcBtn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clipboard"></i> Kopieren</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- right: results -->
+        <div class="col-lg-7 mb-3">
+          <div id="calcResultArea"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rezepte -->
+    <div class="tab-pane fade" id="recipes">
+      <div class="card mb-3">
+        <div class="card-header py-1 d-flex justify-content-between align-items-center">
+          <strong>Rezepte</strong>
+          <div>
+            <i class="bi bi-search" style="cursor:pointer" onclick="toggleFilter('recipeFilter')"></i>
+            <input id="recipeFilter" class="compact-input hidden" placeholder="Filtern…" oninput="renderRecipes(this.value)">
+            <button class="btn btn-sm btn-primary ms-2" onclick="openRecipeModal()"><i class="bi bi-plus"></i></button>
+          </div>
+        </div>
+        <div class="card-body p-2">
+          <div class="table-responsive">
+            <table class="table table-sm table-compact table-zebra mb-0">
+              <thead><tr><th></th><th>Name</th><th>Zutaten</th><th>Werkzeug</th><th>Dauer</th><th>Output</th><th>Ort</th><th class="text-end">Aktionen</th></tr></thead>
+              <tbody id="recipeTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Basis-Daten -->
+    <div class="tab-pane fade" id="data">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card mb-3">
+            <div class="card-header py-1 d-flex justify-content-between align-items-center">
+              <strong>Basis-Items</strong>
+              <div>
+                <i class="bi bi-search" style="cursor:pointer" onclick="toggleFilter('baseFilter')"></i>
+                <input id="baseFilter" class="compact-input hidden" placeholder="Filtern…" oninput="renderBaseItems(this.value)">
+                <button class="btn btn-sm btn-primary ms-2" onclick="openBaseItemModal()"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="card-body p-2">
+              <table class="table table-sm table-striped table-compact mb-0">
+                <thead><tr><th></th><th>Name</th><th>Fundort</th><th></th></tr></thead>
+                <tbody id="baseItemTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-header py-1 d-flex justify-content-between align-items-center">
+              <strong>Werkzeuge</strong>
+              <div>
+                <i class="bi bi-search" style="cursor:pointer" onclick="toggleFilter('toolFilter')"></i>
+                <input id="toolFilter" class="compact-input hidden" placeholder="Filtern…" oninput="renderTools(this.value)">
+                <button class="btn btn-sm btn-primary ms-2" onclick="openToolModal()"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="card-body p-2">
+              <table class="table table-sm table-striped table-compact mb-0">
+                <thead><tr><th></th><th>Name</th><th></th></tr></thead>
+                <tbody id="toolTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card mb-3">
+            <div class="card-header py-1 d-flex justify-content-between align-items-center">
+              <strong>Orte</strong>
+              <div>
+                <i class="bi bi-search" style="cursor:pointer" onclick="toggleFilter('locationFilter')"></i>
+                <input id="locationFilter" class="compact-input hidden" placeholder="Filtern…" oninput="renderLocations(this.value)">
+                <button class="btn btn-sm btn-primary ms-2" onclick="openLocationModal()"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="card-body p-2">
+              <table class="table table-sm table-striped table-compact mb-0">
+                <thead><tr><th></th><th>Name</th><th>PLZ</th><th></th></tr></thead>
+                <tbody id="locationTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal fade" id="baseItemModal"><div class="modal-dialog"><div class="modal-content">
+  <form id="baseItemForm">
+    <div class="modal-header py-1"><strong>Basis-Item</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="baseItemIndex">
+      <input id="baseItemName" class="form-control mb-2" placeholder="Name" required>
+      <input id="baseItemLocation" class="form-control" placeholder="Fundort">
+    </div>
+    <div class="modal-footer py-1"><button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check2-circle"></i> Speichern</button></div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="toolModal"><div class="modal-dialog"><div class="modal-content">
+  <form id="toolForm">
+    <div class="modal-header py-1"><strong>Werkzeug</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="toolIndex">
+      <input id="toolName" class="form-control" placeholder="Name" required>
+    </div>
+    <div class="modal-footer py-1"><button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check2-circle"></i> Speichern</button></div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="locationModal"><div class="modal-dialog"><div class="modal-content">
+  <form id="locationForm">
+    <div class="modal-header py-1"><strong>Ort</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="locationIndex">
+      <input id="locationName" class="form-control mb-2" placeholder="Name" required>
+      <input id="locationPlz" class="form-control" placeholder="PLZ">
+    </div>
+    <div class="modal-footer py-1"><button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check2-circle"></i> Speichern</button></div>
+  </form>
+</div></div></div>
+
+<div class="modal fade" id="recipeModal"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <form id="recipeForm">
+    <div class="modal-header py-1"><strong>Rezept</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="recipeIndex">
+      <input id="recipeName" class="form-control mb-2" placeholder="Name" required>
+      <div class="row mb-2">
+        <div class="col"><input id="recipeDuration" class="form-control" placeholder="Herstelldauer (z.B. 8s, 5m, 2h)"></div>
+        <div class="col"><input id="recipeOutput" class="form-control" placeholder="Anzahl hergestellt (Output), z.B. 1"></div>
+      </div>
+
+      <div class="mb-2">
+        <label>Ort</label>
+        <select id="recipeLocation" class="form-select form-select-sm"></select>
+      </div>
+
+      <div class="mb-2">
+        <label>Werkzeug (optional)</label>
+        <select id="recipeTools" class="form-select form-select-sm"><option value="">(kein Werkzeug)</option></select>
+      </div>
+
+      <strong>Zutaten</strong>
+      <div id="ingredientList" class="mb-2"></div>
+      <button id="addIngredientBtn" class="btn btn-sm btn-outline-secondary" type="button"><i class="bi bi-plus"></i> Zutat</button>
+    </div>
+    <div class="modal-footer py-1"><button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check2-circle"></i> Speichern</button></div>
+  </form>
+</div></div></div>
+
+<!-- Toast container -->
+<div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ---------- helpers & storage ---------- */
+const get = k => JSON.parse(localStorage.getItem(k) || 'null') || [];
+const set = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+function uuid(){ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); return 'id-'+Date.now()+'-'+Math.floor(Math.random()*100000); }
+function escapeHtml(s){ if(!s) return ''; return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
+function secsToReadable(s){ if(!s) return '0s'; s=Math.round(s); const h=Math.floor(s/3600); s%=3600; const m=Math.floor(s/60); s%=60; const parts=[]; if(h) parts.push(h+'h'); if(m) parts.push(m+'m'); if(s||parts.length===0) parts.push(s+'s'); return parts.join(' '); }
+
+if(!localStorage.getItem('baseItems')) set('baseItems',[]);
+if(!localStorage.getItem('tools')) set('tools',[]);
+if(!localStorage.getItem('locations')) set('locations',[]);
+if(!localStorage.getItem('recipes')) set('recipes',[]);
+
+/* Toast */
+function showToast(message, type='info'){
+  const container = document.getElementById('toastContainer');
+  const id = 't' + Date.now();
+  const toastEl = document.createElement('div');
+  const bgClass = (type==='error') ? 'bg-danger text-white' : (type==='success') ? 'bg-success text-white' : 'bg-light text-dark';
+  toastEl.className = `toast align-items-center ${bgClass} border-0`;
+  toastEl.role='alert'; toastEl.ariaLive='assertive'; toastEl.ariaAtomic='true'; toastEl.id=id;
+  toastEl.style.minWidth='300px';
+  toastEl.innerHTML = `<div class="d-flex"><div class="toast-body">${escapeHtml(message)}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Schließen"></button></div>`;
+  container.appendChild(toastEl);
+  const bsToast = new bootstrap.Toast(toastEl, { delay: 3000 });
+  bsToast.show();
+  toastEl.addEventListener('hidden.bs.toast', ()=>toastEl.remove());
+}
+
+/* modals */
+const baseItemModal = new bootstrap.Modal(document.getElementById('baseItemModal'));
+const toolModal = new bootstrap.Modal(document.getElementById('toolModal'));
+const locationModal = new bootstrap.Modal(document.getElementById('locationModal'));
+const recipeModal = new bootstrap.Modal(document.getElementById('recipeModal'));
+
+/* toggle helpers */
+function toggleFilter(id){ const el=document.getElementById(id); if(!el) return; el.classList.toggle('hidden'); if(!el.classList.contains('hidden')) el.focus(); }
+function toggleSection(id){ const el=document.getElementById(id); if(!el) return; el.classList.toggle('hidden'); }
+
+/* ---------- enableDrag ---------- */
+let _dragIndex = null;
+function enableDrag(tbody, key, renderFn){
+  if(!tbody) return;
+  const rows = [...tbody.querySelectorAll('tr')].filter(tr => tr.dataset && tr.dataset.data === '1');
+  rows.forEach((tr, i) => {
+    tr.draggable = true;
+    tr.ondragstart = (e) => { _dragIndex = i; tr.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; };
+    tr.ondragend = () => { tr.classList.remove('dragging'); _dragIndex = null; };
+    tr.ondragover = (e) => e.preventDefault();
+    tr.ondrop = (e) => {
+      e.preventDefault();
+      if(_dragIndex === null) return;
+      const arr = get(key) || [];
+      if(_dragIndex < 0 || _dragIndex >= arr.length) { _dragIndex = null; return; }
+      const item = arr.splice(_dragIndex, 1)[0];
+      const currentRows = [...tbody.querySelectorAll('tr')].filter(tr2 => tr2.dataset && tr2.dataset.data === '1');
+      const dropIndex = currentRows.indexOf(tr);
+      if(dropIndex < 0) { arr.splice(_dragIndex, 0, item); set(key, arr); renderFn(); _dragIndex = null; return; }
+      arr.splice(dropIndex, 0, item);
+      set(key, arr);
+      _dragIndex = null;
+      renderFn();
+    };
+  });
+}
+
+/* ---------- toggleCard (for calc) ---------- */
+function toggleCard(id, btnEl){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.toggle('hidden');
+  let btn = btnEl || document.querySelector(`[onclick="toggleCard('${id}')"]`) || document.querySelector(`[onclick="toggleCard(\"${id}\")"]`);
+  if(btn){
+    const icon = btn.querySelector('i');
+    if(icon){
+      if(el.classList.contains('hidden')){
+        icon.classList.remove('bi-arrows-collapse'); icon.classList.add('bi-arrows-expand');
+      } else {
+        icon.classList.remove('bi-arrows-expand'); icon.classList.add('bi-arrows-collapse');
+      }
+    }
+  }
+}
+
+/* ---------- all-items helpers ---------- */
+function allBaseItems(){ return (get('baseItems')||[]).map(b=>({id:b.id,name:b.name})); }
+function allRecipesRef(){ return (get('recipes')||[]).map(r=>({id:r.id,name:r.name})); }
+function allItemsCombined(){ return [...allBaseItems(), ...allRecipesRef()]; }
+
+/* ---------- Base CRUD ---------- */
+function renderBaseItems(filter=''){
+  const list = get('baseItems')||[]; const tb=document.getElementById('baseItemTable'); tb.innerHTML='';
+  list.forEach(it=>{
+    if((it.name+it.location).toLowerCase().includes(filter.toLowerCase())){
+      tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.location)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editBaseItem('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteBaseItem('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`);
+    }
+  });
+  enableDrag(tb,'baseItems', ()=>{ renderBaseItems(filter); renderRecipes(); updateCalcSelects(); });
+}
+function openBaseItemModal(){ document.getElementById('baseItemIndex').value=''; document.getElementById('baseItemName').value=''; document.getElementById('baseItemLocation').value=''; baseItemModal.show(); }
+function saveBaseItem(e){ if(e && e.preventDefault) e.preventDefault(); const id=document.getElementById('baseItemIndex').value; const name=document.getElementById('baseItemName').value.trim(); const loc=document.getElementById('baseItemLocation').value.trim(); if(!name) { showToast('Name erforderlich','error'); return; } let arr=get('baseItems')||[]; if(!id) arr.push({id:uuid(),name,location:loc}); else { const i=arr.findIndex(x=>x.id===id); if(i>=0){ arr[i].name=name; arr[i].location=loc; } } set('baseItems',arr); baseItemModal.hide(); showToast('Basis-Item gespeichert','success'); renderBaseItems(); renderRecipes(); updateCalcSelects(); }
+function editBaseItem(id){ const arr=get('baseItems')||[]; const it=arr.find(x=>x.id===id); if(!it) return showToast('Nicht gefunden','error'); document.getElementById('baseItemIndex').value=it.id; document.getElementById('baseItemName').value=it.name; document.getElementById('baseItemLocation').value=it.location||''; baseItemModal.show(); }
+function deleteBaseItem(id){ if(!confirm('Basis-Item löschen? Referenzen in Rezepten werden entfernt.')) return; let arr=get('baseItems')||[]; arr=arr.filter(x=>x.id!==id); set('baseItems',arr); let recipes=get('recipes')||[]; recipes = recipes.map(r=>{ r.ingredients = r.ingredients.filter(i=>i.id!==id); return r; }); set('recipes',recipes); renderBaseItems(); renderRecipes(); updateCalcSelects(); showToast('Basis-Item gelöscht','info'); }
+
+/* Tools */
+function renderTools(filter=''){ const list=get('tools')||[]; const tb=document.getElementById('toolTable'); tb.innerHTML=''; list.forEach(it=>{ if(it.name.toLowerCase().includes(filter.toLowerCase())) tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editTool('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteTool('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`); }); enableDrag(document.getElementById('toolTable'),'tools',()=>renderTools(filter)); updateRecipeToolSelect(); }
+function openToolModal(){ document.getElementById('toolIndex').value=''; document.getElementById('toolName').value=''; toolModal.show(); }
+function saveTool(e){ if(e && e.preventDefault) e.preventDefault(); const id=document.getElementById('toolIndex').value; const name=document.getElementById('toolName').value.trim(); if(!name){ showToast('Name erforderlich','error'); return; } let arr=get('tools')||[]; if(!id) arr.push({id:uuid(),name}); else { const i=arr.findIndex(x=>x.id===id); if(i>=0) arr[i].name=name; } set('tools',arr); toolModal.hide(); renderTools(); updateRecipeToolSelect(); showToast('Werkzeug gespeichert','success'); }
+function editTool(id){ const arr=get('tools')||[]; const it=arr.find(x=>x.id===id); if(!it) return showToast('Nicht gefunden','error'); document.getElementById('toolIndex').value=it.id; document.getElementById('toolName').value=it.name; toolModal.show(); }
+function deleteTool(id){ if(!confirm('Werkzeug löschen?')) return; let arr=get('tools')||[]; arr=arr.filter(x=>x.id!==id); set('tools',arr); renderTools(); updateRecipeToolSelect(); showToast('Werkzeug gelöscht','info'); }
+
+/* Locations */
+function renderLocations(filter=''){ const list=get('locations')||[]; const tb=document.getElementById('locationTable'); tb.innerHTML=''; list.forEach(it=>{ if((it.name+it.plz).toLowerCase().includes(filter.toLowerCase())) tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.plz)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editLocation('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteLocation('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`); }); enableDrag(document.getElementById('locationTable'),'locations',()=>renderLocations(filter)); updateRecipeLocationSelect(); updateCalcSelects(); }
+function openLocationModal(){ document.getElementById('locationIndex').value=''; document.getElementById('locationName').value=''; document.getElementById('locationPlz').value=''; locationModal.show(); }
+function saveLocation(e){ if(e && e.preventDefault) e.preventDefault(); const id=document.getElementById('locationIndex').value; const name=document.getElementById('locationName').value.trim(); const plz=document.getElementById('locationPlz').value.trim(); if(!name){ showToast('Name erforderlich','error'); return; } let arr=get('locations')||[]; if(!id) arr.push({id:uuid(),name,plz}); else { const i=arr.findIndex(x=>x.id===id); if(i>=0){ arr[i].name=name; arr[i].plz=plz; } } set('locations',arr); locationModal.hide(); renderLocations(); renderRecipes(); updateCalcSelects(); showToast('Ort gespeichert','success'); }
+function editLocation(id){ const arr=get('locations')||[]; const it=arr.find(x=>x.id===id); if(!it) return showToast('Nicht gefunden','error'); document.getElementById('locationIndex').value=it.id; document.getElementById('locationName').value=it.name; document.getElementById('locationPlz').value=it.plz||''; locationModal.show(); }
+function deleteLocation(id){ if(!confirm('Ort löschen? Referenzen in Rezepten werden entfernt.')) return; let arr=get('locations')||[]; arr=arr.filter(x=>x.id!==id); set('locations',arr); let recipes=get('recipes')||[]; recipes = recipes.map(r=>{ if(r.locationId === id) r.locationId=''; return r; }); set('recipes',recipes); renderLocations(); renderRecipes(); updateCalcSelects(); showToast('Ort gelöscht','info'); }
+
+/* Recipes */
+function updateRecipeLocationSelect(){
+  const sel=document.getElementById('recipeLocation'); if(!sel) return; sel.innerHTML='<option value="">(kein Ort)</option>'; (get('locations')||[]).forEach(l=>{ const o=document.createElement('option'); o.value=l.id; o.textContent=l.name; sel.appendChild(o); });
+}
+function updateRecipeToolSelect(){
+  const sel=document.getElementById('recipeTools'); if(!sel) return; sel.innerHTML='<option value="">(kein Werkzeug)</option>'; (get('tools')||[]).forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o); });
+}
+
+const ingredientList = document.getElementById('ingredientList');
+const addIngredientBtn = document.getElementById('addIngredientBtn');
+
+function openRecipeModal(){
+  document.getElementById('recipeIndex').value=''; document.getElementById('recipeName').value=''; document.getElementById('recipeDuration').value=''; document.getElementById('recipeOutput').value='1';
+  ingredientList.innerHTML=''; updateRecipeLocationSelect(); updateRecipeToolSelect(); addIngredientRow(); recipeModal.show();
+}
+
+function addIngredientRow(data={}){
+  if(!ingredientList) return;
+  const used=[...ingredientList.querySelectorAll('select')].map(s=>s.value).filter(Boolean);
+  const items = allItemsCombined();
+  const available = items.filter(it=>!used.includes(it.id));
+  if(available.length===0){ addIngredientBtn.disabled=true; return; } else addIngredientBtn.disabled=false;
+  const div=document.createElement('div'); div.className='d-flex mb-1';
+  const sel=document.createElement('select'); sel.className='form-select form-select-sm me-1';
+  available.forEach(it=>{ const o=document.createElement('option'); o.value=it.id; o.textContent=it.name; sel.appendChild(o); });
+  if(data.id){
+    const exists=[...sel.options].some(o=>o.value===data.id);
+    if(!exists){ const found=allItemsCombined().find(x=>x.id===data.id); if(found){ const opt=document.createElement('option'); opt.value=found.id; opt.textContent=found.name; sel.insertBefore(opt, sel.firstChild); } }
+    sel.value=data.id;
+  }
+  const amt=document.createElement('input'); amt.type='number'; amt.min='1'; amt.value=data.amount||1; amt.className='form-control form-control-sm me-1 qty-input';
+  const del=document.createElement('button'); del.type='button'; del.className='btn btn-sm btn-danger'; del.innerHTML='<i class="bi bi-trash"></i>';
+  del.onclick=()=>{ div.remove(); setTimeout(updateIngredientBtn,0); };
+  div.appendChild(sel); div.appendChild(amt); div.appendChild(del); ingredientList.appendChild(div); updateIngredientBtn();
+}
+function updateIngredientBtn(){ const used=[...ingredientList.querySelectorAll('select')].map(s=>s.value).filter(Boolean); const available=allItemsCombined().filter(it=>!used.includes(it.id)); addIngredientBtn.disabled = available.length===0; }
+
+function hasCycle(targetId, ingredients, visited=new Set()){
+  for(const ing of ingredients){
+    if(ing.id === targetId) return true;
+    if(visited.has(ing.id)) continue;
+    visited.add(ing.id);
+    const r=(get('recipes')||[]).find(rr=>rr.id===ing.id);
+    if(r && r.ingredients && r.ingredients.length){
+      if(hasCycle(targetId, r.ingredients, visited)) return true;
+    }
+  }
+  return false;
+}
+
+function saveRecipe(e){
+  if(e && e.preventDefault) e.preventDefault();
+  const idxStr=document.getElementById('recipeIndex').value;
+  const idx = (idxStr==='')?null:parseInt(idxStr,10);
+  const name=document.getElementById('recipeName').value.trim(); if(!name){ showToast('Name erforderlich','error'); return; }
+  const duration=document.getElementById('recipeDuration').value.trim();
+  const output=parseInt(document.getElementById('recipeOutput').value)||1;
+  const locationId=document.getElementById('recipeLocation').value||'';
+  const toolVal=document.getElementById('recipeTools').value || '';
+  const toolSel = toolVal ? [toolVal] : [];
+  const ingredientDivs=[...ingredientList.querySelectorAll('div')];
+  const ingredients=ingredientDivs.map(d=>{ const s=d.querySelector('select'); const a=d.querySelector('input'); return {id:s.value, amount:Math.max(1, parseInt(a.value)||1)}; });
+  if(ingredients.length===0){ showToast('Mindestens eine Zutat erforderlich','error'); return; }
+  const recipes = get('recipes')||[]; let recipeId = uuid(); if(idx!==null && recipes[idx] && recipes[idx].id) recipeId = recipes[idx].id;
+  if(hasCycle(recipeId, ingredients)){ showToast('Zyklus erkannt — Speichern abgebrochen','error'); return; }
+  const recipeObj = { id: recipeId, name, duration, output, locationId, tools: toolSel, ingredients };
+  if(idx===null) recipes.push(recipeObj); else recipes[idx] = recipeObj;
+  set('recipes', recipes); recipeModal.hide(); renderRecipes(); updateCalcSelects(); showToast('Rezept gespeichert','success');
+}
+
+/* Build scaled tree to show correct quantities (recursive proportional scaling) */
+function buildTree(recipeId, desiredQty){
+  const recipes = get('recipes')||[];
+  const baseItems = get('baseItems')||[];
+  const map = {}; recipes.forEach(r=>map[r.id]=r);
+  function buildNode(id, qty){
+    const recipe = map[id];
+    if(!recipe){
+      const base = baseItems.find(b=>b.id===id);
+      return { id, name: base ? base.name : '[gelöscht]', qty: Math.round(qty*100)/100, children: [] };
+    }
+    const outPer = parseFloat(recipe.output)||1;
+    const multiplier = (outPer===0) ? 0 : qty / outPer;
+    const node = { id: recipe.id, name: recipe.name, qty: Math.round(qty*100)/100, children: [] };
+    (recipe.ingredients||[]).forEach(ing=>{
+      const reqQty = (ing.amount||0) * multiplier;
+      node.children.push(buildNode(ing.id, reqQty));
+    });
+    return node;
+  }
+  return buildNode(recipeId, desiredQty);
+}
+
+/* Render recipes */
+function renderRecipes(filter=''){
+  const recipes=get('recipes')||[]; const tb=document.getElementById('recipeTable'); tb.innerHTML='';
+  recipes.forEach((r,idx)=>{
+    if(!r.name.toLowerCase().includes(filter.toLowerCase())) return;
+    const top=(r.ingredients||[]).map(ing=>{ const it=allItemsCombined().find(x=>x.id===ing.id); return it?`${it.name} (${ing.amount}x)`:`[gelöscht] (${ing.amount}x)`; }).join(', ');
+    const toolName = (r.tools && r.tools.length) ? ((get('tools')||[]).find(t=>t.id===r.tools[0])||{name:'[gelöscht]'}).name : '';
+    const loc=(get('locations')||[]).find(l=>l.id===r.locationId); const locName=loc?loc.name:'';
+    const rowHtml=`<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(top)}</td><td>${escapeHtml(toolName)}</td><td>${escapeHtml(r.duration||'')}</td><td>${escapeHtml(String(r.output||1))}</td><td>${escapeHtml(locName)}</td>
+      <td class="text-end action-cell"><div class="recipe-actions">
+        <button class="btn btn-sm btn-warning" onclick="editRecipe(${idx})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="toggleDetail(${idx})"><i class="bi bi-arrows-angle-expand"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteRecipe(${idx})"><i class="bi bi-trash"></i></button>
+      </div></td></tr>`;
+    tb.insertAdjacentHTML('beforeend', rowHtml);
+    const detailId = `recipe-detail-${idx}`;
+    tb.insertAdjacentHTML('beforeend', `<tr id="${detailId}" data-data="0" class="hidden"><td colspan="8" style="padding:6px 1rem;"></td></tr>`);
+    const detailRow = document.getElementById(detailId);
+    if(detailRow){
+      const container = document.createElement('div'); container.className='tree';
+      const ulRoot = document.createElement('ul');
+      const rootQty = parseFloat(r.output) || 1;
+      const tree = buildTree(r.id, rootQty);
+      function renderNode(node){
+        const li = document.createElement('li');
+        const nodeDiv = document.createElement('div');
+        nodeDiv.className='node';
+        nodeDiv.textContent = `${node.name} (x${Number.isInteger(node.qty) ? node.qty : (Math.round(node.qty*100)/100)})`;
+        li.appendChild(nodeDiv);
+        if(node.children && node.children.length){
+          const subUl = document.createElement('ul');
+          node.children.forEach(ch => subUl.appendChild(renderNode(ch)));
+          li.appendChild(subUl);
+        }
+        return li;
+      }
+      ulRoot.appendChild(renderNode(tree));
+      container.appendChild(ulRoot);
+      detailRow.children[0].appendChild(container);
+    }
+  });
+
+  const dataRows = [...tb.querySelectorAll('tr')].filter(tr => tr.dataset && tr.dataset.data === '1');
+  dataRows.forEach((tr, i) => {
+    tr.classList.remove('zebra-odd','zebra-even');
+    if(i % 2 === 0) tr.classList.add('zebra-odd'); else tr.classList.add('zebra-even');
+  });
+
+  enableDrag(document.getElementById('recipeTable'),'recipes', ()=>renderRecipes(filter));
+  updateCalcSelects();
+}
+
+function toggleDetail(idx){ const el=document.getElementById(`recipe-detail-${idx}`); if(!el) return; el.classList.toggle('hidden'); }
+function editRecipe(idx){ const recipes=get('recipes')||[]; const r=recipes[idx]; if(!r) return showToast('Nicht gefunden','error'); document.getElementById('recipeIndex').value=String(idx); document.getElementById('recipeName').value=r.name; document.getElementById('recipeDuration').value=r.duration||''; document.getElementById('recipeOutput').value=r.output||1; updateRecipeLocationSelect(); updateRecipeToolSelect(); document.getElementById('recipeLocation').value = r.locationId || ''; document.getElementById('recipeTools').value = (r.tools && r.tools.length) ? r.tools[0] : ''; ingredientList.innerHTML=''; (r.ingredients||[]).forEach(ing=>addIngredientRow(ing)); recipeModal.show(); }
+function deleteRecipe(idx){ if(!confirm('Rezept löschen? Referenzen in anderen Rezepten werden entfernt.')) return; const recipes=get('recipes')||[]; const id=recipes[idx]?.id; recipes.splice(idx,1); const updated = recipes.map(r=>{ r.ingredients = r.ingredients.filter(i=>i.id!==id); return r; }); set('recipes',updated); renderRecipes(); updateCalcSelects(); showToast('Rezept gelöscht','info'); }
+
+/* ---------- Calculator ---------- */
+const calcCart = []; // {id, qty}
+const existingItems = []; // {id, qty}
+
+function fillCalcRecipeSelect(){
+  const sel=document.getElementById('calcRecipeSelect'); sel.innerHTML=''; const inCart=new Set(calcCart.map(c=>c.id));
+  (get('recipes')||[]).forEach(r=>{ if(inCart.has(r.id)) return; const o=document.createElement('option'); o.value=r.id; o.textContent=r.name; sel.appendChild(o); });
+  if(!sel.options.length) sel.innerHTML='<option value="">(keine verfügbaren Rezepte)</option>';
+}
+
+function fillExistingItemSelect(){
+  const sel=document.getElementById('existingItemSelect'); sel.innerHTML=''; const existingSet=new Set(existingItems.map(e=>e.id));
+  allBaseItems().forEach(b=>{ if(existingSet.has(b.id)) return; const o=document.createElement('option'); o.value=b.id; o.textContent=b.name+' (Basis)'; sel.appendChild(o); });
+  allRecipesRef().forEach(r=>{ if(existingSet.has(r.id)) return; const o=document.createElement('option'); o.value=r.id; o.textContent=r.name+' (Rezept)'; sel.appendChild(o); });
+  if(!sel.options.length) sel.innerHTML='<option value="">(keine verfügbaren Items)</option>';
+}
+
+function updateCalcSelects(){ fillCalcRecipeSelect(); fillExistingItemSelect(); renderCalcCart(); renderExistingList(); }
+
+function calcAddToList(){ const sel=document.getElementById('calcRecipeSelect'); const qty=Math.max(1, parseInt(document.getElementById('calcQty').value)||1); const id=sel.value; if(!id){ showToast('Kein Rezept ausgewählt','error'); return; } const ex=calcCart.find(x=>x.id===id); if(ex) ex.qty+=qty; else calcCart.push({id,qty}); renderCalcCart(); updateCalcSelects(); }
+
+function renderCalcCart(){
+  const container = document.getElementById('calcCart');
+  container.innerHTML = '';
+  if(calcCart.length === 0){ container.innerHTML = '<div class="text-muted small">Keine Rezepte ausgewählt</div>'; return; }
+  calcCart.forEach((c, idx) => {
+    const r = (get('recipes')||[]).find(rr => rr.id === c.id) || { name: '[gelöscht]' };
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'calc-item';
+
+    // qty column (left)
+    const qtyCol = document.createElement('div'); qtyCol.className = 'col-qty';
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number';
+    qtyInput.min = '1';
+    qtyInput.value = c.qty;
+    qtyInput.className = 'form-control form-control-sm qty-input';
+    qtyInput.onchange = () => updateCartQty(idx, qtyInput.value);
+    qtyCol.appendChild(qtyInput);
+
+    // name column (middle)
+    const nameCol = document.createElement('div'); nameCol.className = 'col-name';
+    nameCol.textContent = r.name;
+
+    // action column (right)
+    const actionCol = document.createElement('div'); actionCol.className = 'col-action';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-danger';
+    delBtn.innerHTML = '<i class="bi bi-trash"></i>';
+    delBtn.onclick = () => removeCartItem(idx);
+    actionCol.appendChild(delBtn);
+
+    itemDiv.appendChild(qtyCol);
+    itemDiv.appendChild(nameCol);
+    itemDiv.appendChild(actionCol);
+
+    container.appendChild(itemDiv);
+  });
+}
+
+function updateCartQty(i,v){ calcCart[i].qty=Math.max(1,parseInt(v)||1); renderCalcCart(); updateCalcSelects(); }
+function removeCartItem(i){ calcCart.splice(i,1); renderCalcCart(); updateCalcSelects(); }
+
+/* EXISTING list: qty left, name middle, delete right */
+function addExistingItem(){ const sel=document.getElementById('existingItemSelect'); const qty=Math.max(1, parseInt(document.getElementById('existingQty').value)||1); const id=sel.value; if(!id){ showToast('Kein Item ausgewählt','error'); return; } const ex=existingItems.find(x=>x.id===id); if(ex) ex.qty+=qty; else existingItems.push({id,qty}); renderExistingList(); updateCalcSelects(); }
+
+function renderExistingList(){
+  const container = document.getElementById('existingList');
+  container.innerHTML = '';
+  if(existingItems.length === 0){ container.innerHTML = '<div class="my-2"></div><div class="text-muted small">Keine vorhandenen Items</div>'; return; }
+  existingItems.forEach((e, idx) => {
+    const it = allItemsCombined().find(x=>x.id===e.id) || { name: '[gelöscht]' };
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'calc-item';
+
+    // qty
+    const qtyCol = document.createElement('div'); qtyCol.className='col-qty';
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number';
+    qtyInput.min = '0';
+    qtyInput.value = e.qty;
+    qtyInput.className = 'form-control form-control-sm qty-input';
+    qtyInput.onchange = () => updateExistingQty(idx, qtyInput.value);
+    qtyCol.appendChild(qtyInput);
+
+    // name
+    const nameCol = document.createElement('div'); nameCol.className='col-name';
+    nameCol.textContent = it.name;
+
+    // action
+    const actionCol = document.createElement('div'); actionCol.className='col-action';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm btn-danger';
+    delBtn.innerHTML = '<i class="bi bi-trash"></i>';
+    delBtn.onclick = () => removeExisting(idx);
+    actionCol.appendChild(delBtn);
+
+    itemDiv.appendChild(qtyCol);
+    itemDiv.appendChild(nameCol);
+    itemDiv.appendChild(actionCol);
+
+    container.appendChild(itemDiv);
+  });
+}
+
+function updateExistingQty(i,v){ existingItems[i].qty=Math.max(0,parseInt(v)||0); renderExistingList(); updateCalcSelects(); }
+function removeExisting(i){ existingItems.splice(i,1); renderExistingList(); updateCalcSelects(); }
+
+function parseDurationToSeconds(s){ if(!s) return 0; const m=String(s).trim().match(/^(\d+)\s*([smhSMH])?$/); if(!m) return 0; const n=parseInt(m[1],10); const unit=(m[2]||'s').toLowerCase(); if(unit==='s') return n; if(unit==='m') return n*60; if(unit==='h') return n*3600; return n; }
+
+/* compute functions */
+function computeRequirementsWithExisting(cart, existing){
+  const recipes=get('recipes')||[]; const baseItems=get('baseItems')||[]; const recipeMap={}; recipes.forEach(r=>recipeMap[r.id]=r);
+  const desired1={}; cart.forEach(c=>desired1[c.id]=(desired1[c.id]||0)+c.qty);
+  const recipeOps_total={}; const totalBaseReq={};
+  const q1=Object.keys(desired1);
+  while(q1.length){
+    const id=q1.shift(); const qtyNeeded=desired1[id]||0;
+    const isBase=baseItems.find(b=>b.id===id);
+    if(isBase){ totalBaseReq[id]=(totalBaseReq[id]||0)+qtyNeeded; delete desired1[id]; continue; }
+    const r=recipeMap[id]; if(!r){ delete desired1[id]; continue; }
+    const outPer=parseInt(r.output)||1; const ops=Math.ceil(qtyNeeded/outPer);
+    recipeOps_total[id]=(recipeOps_total[id]||0)+ops;
+    r.ingredients.forEach(ing=>{ const add=(ing.amount||0)*ops; const baseFound=baseItems.find(b=>b.id===ing.id); if(baseFound) totalBaseReq[ing.id]=(totalBaseReq[ing.id]||0)+add; else { desired1[ing.id]=(desired1[ing.id]||0)+add; if(!q1.includes(ing.id)) q1.push(ing.id); } });
+    delete desired1[id];
+  }
+
+  const existingMap={}; existing.forEach(e=>existingMap[e.id]=(existingMap[e.id]||0)+e.qty);
+  const desired2={}; cart.forEach(c=>desired2[c.id]=(desired2[c.id]||0)+c.qty);
+  Object.keys(desired2).forEach(id=>{ if(existingMap[id]){ const use=Math.min(desired2[id], existingMap[id]); desired2[id]-=use; existingMap[id]-=use; if(desired2[id]===0) delete desired2[id]; }});
+  const recipeOps_adj={}; const adjustedBaseReq={};
+  const q2=Object.keys(desired2);
+  while(q2.length){
+    const id=q2.shift(); const qtyNeeded=desired2[id]||0;
+    const isBase=baseItems.find(b=>b.id===id);
+    if(isBase){
+      let need=qtyNeeded; if(existingMap[id]){ const use=Math.min(need, existingMap[id]); need-=use; existingMap[id]-=use; }
+      if(need>0) adjustedBaseReq[id]=(adjustedBaseReq[id]||0)+need;
+      delete desired2[id]; continue;
+    }
+    const r=recipeMap[id]; if(!r){ delete desired2[id]; continue; }
+    const outPer=parseInt(r.output)||1; const ops=Math.ceil(qtyNeeded/outPer);
+    recipeOps_adj[id]=(recipeOps_adj[id]||0)+ops;
+    r.ingredients.forEach(ing=>{
+      let add=(ing.amount||0)*ops;
+      if(existingMap[ing.id]){ const use=Math.min(add, existingMap[ing.id]); add-=use; existingMap[ing.id]-=use; }
+      if(add>0){
+        const baseFound=baseItems.find(b=>b.id===ing.id);
+        if(baseFound) adjustedBaseReq[ing.id]=(adjustedBaseReq[ing.id]||0)+add;
+        else { desired2[ing.id]=(desired2[ing.id]||0)+add; if(!q2.includes(ing.id)) q2.push(ing.id); }
+      }
+    });
+    delete desired2[id];
+  }
+
+  const involved=Object.keys(recipeOps_adj); const adj={}; involved.forEach(id=>adj[id]=new Set());
+  involved.forEach(id=>{ const r=recipeMap[id]; if(!r) return; r.ingredients.forEach(ing=>{ if(involved.includes(ing.id)) adj[id].add(ing.id); }); });
+  const visited={}; const order=[];
+  function dfs(u){ if(visited[u]) return; visited[u]=true; adj[u].forEach(v=>dfs(v)); order.push(u); }
+  involved.forEach(id=>dfs(id));
+  const steps=order.map(id=>{
+    const r=recipeMap[id]; const ops=recipeOps_adj[id]||0; const outPer=parseInt(r.output)||1; const produces=ops*outPer;
+    const ingredients=(r.ingredients||[]).map(i=>({id:i.id, qty:(i.amount||0)*ops}));
+    const perOpSec=parseDurationToSeconds(r.duration||''); const totalSec=perOpSec*ops;
+    return { id, name:r.name, ops, outPer, produces, ingredients, perOpSec, totalSec, locationId:r.locationId||'', tools:r.tools||[] };
+  });
+  const totalSeconds=steps.reduce((s,st)=>s+(st.totalSec||0),0);
+  return { totalBaseReq, adjustedBaseReq, recipeOps_total, recipeOps_adj, steps, totalSeconds };
+}
+
+/* ---------- render calc result ---------- */
+let lastCalcResult=null;
+function runCalculator(){
+  if(calcCart.length===0){ showToast('Keine Rezepte in der Liste','error'); return; }
+  const sortMethod=document.getElementById('calcSortMethod').value||'dependency';
+  const result = computeRequirementsWithExisting(calcCart, existingItems);
+  lastCalcResult = { cart: JSON.parse(JSON.stringify(calcCart)), existing: JSON.parse(JSON.stringify(existingItems)), result, sortMethod };
+  renderCalcResult(lastCalcResult);
+}
+
+/* helper to create collapsible cards */
+function makeCard(title, id, innerHtml){
+  const card=document.createElement('div'); card.className='card mb-2';
+  const header=document.createElement('div'); header.className='card-header py-1 d-flex justify-content-between align-items-center';
+  header.innerHTML = `<strong>${escapeHtml(title)}</strong><div><button class="btn btn-sm btn-light" onclick="toggleSection('${id}')"><i class="bi bi-arrows-collapse"></i></button></div>`;
+  const body=document.createElement('div'); body.className='card-body p-2'; body.id=id; body.innerHTML=innerHtml;
+  card.appendChild(header); card.appendChild(body); return card;
+}
+
+function renderCalcResult(data){
+  const area=document.getElementById('calcResultArea'); area.innerHTML='';
+  if(!data) return;
+  const result = data.result; const baseItems = get('baseItems')||[]; const locs = get('locations')||[];
+
+  const totalList = Object.entries(result.totalBaseReq||{}).map(([id,qty])=>({ id, name: (baseItems.find(b=>b.id===id)||{name:'[gelöscht]'}).name, qty }));
+  const adjustedList = Object.entries(result.adjustedBaseReq||{}).map(([id,qty])=>({ id, name: (baseItems.find(b=>b.id===id)||{name:'[gelöscht]'}).name, qty }));
+
+  let totalHtml='';
+  if(totalList.length===0) totalHtml = '<div class="text-muted small">Keine Basis-Zutaten benötigt</div>';
+  else {
+    totalHtml += `<table class="table table-sm table-compact"><tbody>`;
+    totalList.forEach(b => totalHtml += `<tr><td>${escapeHtml(String(b.qty) + 'x ' + b.name)}</td></tr>`);
+    totalHtml += `</tbody></table>`;
+  }
+  area.appendChild(makeCard('Gesamtbedarf Basis-Items (vor Abzug)', 'calc-total', totalHtml));
+
+  let existHtml='';
+  if(data.existing.length===0){
+    existHtml = '<div class="my-2"></div><div class="text-muted small">Keine vorhandenen Items</div>';
+  } else {
+    existHtml += `<table class="table table-sm table-compact"><tbody>`;
+    data.existing.forEach(e => { const it=allItemsCombined().find(x=>x.id===e.id)||{name:'[gelöscht]'}; existHtml += `<tr><td>${escapeHtml(String(e.qty) + 'x ' + it.name)}</td></tr>`; });
+    existHtml += `</tbody></table>`;
+  }
+  area.appendChild(makeCard('Vorhandene Items', 'calc-existing', existHtml));
+  if(data.existing.length===0){
+    const body = document.getElementById('calc-existing');
+    if(body) body.classList.add('hidden');
+  }
+
+  let adjHtml='';
+  if(adjustedList.length===0) adjHtml = '<div class="text-muted small">Keine Basis-Zutaten benötigt</div>';
+  else {
+    adjHtml += `<table class="table table-sm table-compact"><tbody>`;
+    adjustedList.forEach(b => adjHtml += `<tr><td>${escapeHtml(String(b.qty) + 'x ' + b.name)}</td></tr>`);
+    adjHtml += `</tbody></table>`;
+  }
+  area.appendChild(makeCard('Benötigt nach Abzug vorhandener Items', 'calc-adjusted', adjHtml));
+
+  let steps = result.steps || [];
+  if(data.sortMethod === 'location'){
+    const groups = {}; steps.forEach(st=>{ const lid = st.locationId || '(kein Ort)'; if(!groups[lid]) groups[lid]=[]; groups[lid].push(st); });
+    const locList = Object.keys(groups).sort((a,b)=>{ const an=(a==='(kein Ort)')?'':((locs.find(x=>x.id===a)||{name:''}).name); const bn=(b==='(kein Ort)')?'':((locs.find(x=>x.id===b)||{name:''}).name); return an.localeCompare(bn); });
+    const newSteps=[]; locList.forEach(lid=>groups[lid].forEach(s=>newSteps.push(s))); steps=newSteps;
+  }
+
+  let stepsHtml='';
+  if(steps.length===0) stepsHtml = '<div class="text-muted small">Keine Craft-Schritte notwendig</div>';
+  else {
+    stepsHtml = '';
+    steps.forEach((st, i) => {
+      const locName = (st.locationId && (locs.find(l=>l.id===st.locationId))) ? (locs.find(l=>l.id===st.locationId).name) : '(kein Ort)';
+      const toolsText = (st.tools && st.tools.length) ? 'Werkzeuge: ' + st.tools.map(tid => (get('tools')||[]).find(tt=>tt.id===tid)?.name || '[gelöscht]').join(', ') : '';
+      const ingList = st.ingredients.map(it=>{ const nm=(allItemsCombined().find(x=>x.id===it.id)||{name:'[gelöscht]'}).name; return `${it.qty}x ${nm}`; }).join(', ');
+      stepsHtml += `<div class="step"><div class="meta"><strong>#${i+1} ${escapeHtml(st.name)}</strong><span class="badge">${escapeHtml(locName)}</span>${ toolsText ? ' • '+escapeHtml(toolsText) : '' } • Vorgänge: ${st.ops} • erzeugt: ${st.produces} • Zeit: ${secsToReadable(st.totalSec)}</div><div class="small text-muted">Benötigt: ${escapeHtml(ingList)}</div></div>`;
+    });
+  }
+  area.appendChild(makeCard('Schritte', 'calc-steps', stepsHtml));
+
+  const summaryHTML = `<div class="small text-muted">Gesamtzeit: <strong>${secsToReadable(result.totalSeconds)}</strong></div>`;
+  const summaryCard = document.createElement('div'); summaryCard.className='card mb-2'; summaryCard.innerHTML = `<div class="card-header py-1"><strong>Zusammenfassung</strong></div><div class="card-body p-2">${summaryHTML}</div>`;
+  area.appendChild(summaryCard);
+}
+
+/* copy to clipboard */
+function exportCalcAsMarkdown(data){
+  if(!data) data=lastCalcResult;
+  if(!data) return '';
+  const recipes=get('recipes')||[]; const baseItems=get('baseItems')||[]; const locs=get('locations')||[];
+  const lines=[];
+  lines.push(`# Crafting Kalkulation`);
+  lines.push('');
+  lines.push(`**Ausgewählte Rezepte:**`);
+  data.cart.forEach(c=>{ const r=recipes.find(rr=>rr.id===c.id)||{name:'[gelöscht]'}; lines.push(`- ${r.name} × ${c.qty}`); });
+  lines.push('');
+  lines.push(`**Vorhandene Items:**`);
+  if(data.existing.length===0) lines.push('- Keine');
+  else data.existing.forEach(e=>{ const it=allItemsCombined().find(x=>x.id===e.id)||{name:'[gelöscht]'}; lines.push(`- ${e.qty}x ${it.name}`); });
+  lines.push('');
+  lines.push(`**Gesamtbedarf (Basis-Items vor Abzug):**`);
+  const total=data.result.totalBaseReq||{};
+  if(Object.keys(total).length===0) lines.push('- Keine');
+  else Object.entries(total).forEach(([id,qty])=>{ const b=baseItems.find(bb=>bb.id===id)||{name:'[gelöscht]'}; lines.push(`- ${qty}x ${b.name}`); });
+  lines.push('');
+  lines.push(`**Benötigt nach Abzug vorhandener Items (Basis):**`);
+  const adj=data.result.adjustedBaseReq||{};
+  if(Object.keys(adj).length===0) lines.push('- Keine');
+  else Object.entries(adj).forEach(([id,qty])=>{ const b=baseItems.find(bb=>bb.id===id)||{name:'[gelöscht]'}; lines.push(`- ${qty}x ${b.name}`); });
+  lines.push('');
+  lines.push(`**Schritte:**`);
+  data.result.steps.forEach((st, idx)=>{ const locName=(st.locationId && (locs.find(l=>l.id===st.locationId))) ? (locs.find(l=>l.id===st.locationId).name) : 'kein Ort'; const toolsText = (st.tools && st.tools.length) ? ' • Werkzeuge: ' + st.tools.map(tid => (get('tools')||[]).find(tt=>tt.id===tid)?.name || '[gelöscht]').join(', ') : ''; lines.push(`${idx+1}. **${st.name}** — ${st.ops} Durchgänge, erzeugt ${st.produces}${toolsText} — Ort: ${locName} — Zeit: ${secsToReadable(st.totalSec)}`); lines.push(`   - Benötigt: ${st.ingredients.map(i=>{ const it=allItemsCombined().find(x=>x.id===i.id)||{name:'[gelöscht]'}; return `${i.qty}x ${it.name}`; }).join(', ')}`); });
+  lines.push('');
+  lines.push(`**Gesamtzeit:** ${secsToReadable(data.result.totalSeconds)}`);
+  return lines.join('\n');
+}
+
+document.getElementById('copyCalcBtn').addEventListener('click', ()=>{
+  if(!lastCalcResult) { showToast('Keine Berechnung vorhanden','error'); return; }
+  const md = exportCalcAsMarkdown(lastCalcResult);
+  navigator.clipboard.writeText(md).then(()=> showToast('Kalkulation in die Zwischenablage kopiert.','success'));
+});
+
+/* import/export */
+document.getElementById('exportAllBtn').addEventListener('click', ()=>{
+  const all = { baseItems:get('baseItems'), tools:get('tools'), locations:get('locations'), recipes:get('recipes') };
+  const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'crafting-data.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+document.getElementById('importFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = (e)=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(data.baseItems) set('baseItems', data.baseItems);
+      if(data.tools) set('tools', data.tools);
+      if(data.locations) set('locations', data.locations);
+      if(data.recipes) set('recipes', data.recipes);
+      showToast('Importiert','success');
+      renderBaseItems(); renderTools(); renderLocations(); renderRecipes(); updateCalcSelects();
+    }catch(err){ showToast('Fehler beim Import: '+err.message,'error'); }
+  };
+  reader.readAsText(f);
+});
+
+function clearStorage(){ if(!confirm('Alles löschen?')) return; localStorage.clear(); set('baseItems',[]); set('tools',[]); set('locations',[]); set('recipes',[]); calcCart.length=0; existingItems.length=0; document.getElementById('calcResultArea').innerHTML=''; lastCalcResult=null; renderBaseItems(); renderTools(); renderLocations(); renderRecipes(); updateCalcSelects(); showToast('Alles gelöscht','info'); }
+
+/* ---------- init & bindings ---------- */
+document.getElementById('baseItemForm').addEventListener('submit', saveBaseItem);
+document.getElementById('toolForm').addEventListener('submit', saveTool);
+document.getElementById('locationForm').addEventListener('submit', saveLocation);
+document.getElementById('recipeForm').addEventListener('submit', saveRecipe);
+addIngredientBtn.addEventListener('click', ()=>addIngredientRow());
+
+document.getElementById('calcRunBtn').addEventListener('click', ()=>{ runCalculator(); });
+document.getElementById('calcClearBtn').addEventListener('click', ()=>{ calcCart.length=0; existingItems.length=0; renderCalcCart(); renderExistingList(); document.getElementById('calcResultArea').innerHTML=''; lastCalcResult=null; updateCalcSelects(); });
+document.getElementById('calcAddBtn').addEventListener('click', (e)=>{ e.preventDefault(); calcAddToList(); });
+document.getElementById('existingAddBtn').addEventListener('click', (e)=>{ e.preventDefault(); addExistingItem(); });
+
+/* Persist last active tab */
+const tabButtons = document.querySelectorAll('button[data-bs-toggle="tab"]');
+tabButtons.forEach(btn => {
+  btn.addEventListener('shown.bs.tab', (e) => {
+    try { localStorage.setItem('lastTab', e.target.getAttribute('data-bs-target')); } catch(_) {}
+  });
+});
+window.addEventListener('load', () => {
+  const last = localStorage.getItem('lastTab');
+  if(last){
+    const targetBtn = document.querySelector(`button[data-bs-target="${last}"]`);
+    if(targetBtn){
+      const bsTab = bootstrap.Tab.getOrCreateInstance(targetBtn);
+      bsTab.show();
+    }
+  }
+});
+
+/* initial render */
+renderBaseItems(); renderTools(); renderLocations(); renderRecipes(); updateRecipeToolSelect(); updateRecipeLocationSelect(); updateCalcSelects();
+
+</script>
+</body>
+</html>
