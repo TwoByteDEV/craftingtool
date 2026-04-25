@@ -76,6 +76,8 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 
 #toastContainer { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:1080; }
 
+.price-input { width: 110px; }
+
 @media (max-width: 1100px) { .container{ max-width:96vw; } }
 @media (max-width: 768px) {
   .qty-row { flex-direction:column; align-items:stretch; }
@@ -189,7 +191,6 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
                 </div>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -214,7 +215,7 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
         <div class="card-body p-2">
           <div class="table-responsive">
             <table class="table table-sm table-compact table-zebra mb-0">
-              <thead><tr><th></th><th>Name</th><th>Zutaten</th><th>Werkzeug</th><th>Dauer</th><th>Output</th><th>Ort</th><th class="text-end">Aktionen</th></tr></thead>
+              <thead><tr><th></th><th>Name</th><th>Zutaten</th><th>Werkzeug</th><th>Dauer</th><th>Output</th><th>Verkaufspreis</th><th>Verkaufspreis Gewerbe</th><th>Ort</th><th class="text-end">Aktionen</th></tr></thead>
               <tbody id="recipeTable"></tbody>
             </table>
           </div>
@@ -237,7 +238,7 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
             </div>
             <div class="card-body p-2">
               <table class="table table-sm table-striped table-compact mb-0">
-                <thead><tr><th></th><th>Name</th><th>Fundort</th><th></th></tr></thead>
+                <thead><tr><th></th><th>Name</th><th>Fundort</th><th>Einkaufspreis</th><th></th></tr></thead>
                 <tbody id="baseItemTable"></tbody>
               </table>
             </div>
@@ -292,7 +293,11 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
     <div class="modal-body">
       <input type="hidden" id="baseItemIndex">
       <input id="baseItemName" class="form-control mb-2" placeholder="Name" required>
-      <input id="baseItemLocation" class="form-control" placeholder="Fundort">
+      <input id="baseItemLocation" class="form-control mb-2" placeholder="Fundort">
+      <div class="input-group">
+        <span class="input-group-text">$</span>
+        <input id="baseItemBuyPrice" type="number" step="0.01" class="form-control price-input" placeholder="Einkaufspreis (optional)">
+      </div>
     </div>
     <div class="modal-footer py-1"><button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check2-circle"></i> Speichern</button></div>
   </form>
@@ -329,7 +334,24 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
       <input id="recipeName" class="form-control mb-2" placeholder="Name" required>
       <div class="row mb-2">
         <div class="col"><input id="recipeDuration" class="form-control" placeholder="Herstelldauer (z.B. 8s, 5m, 2h)"></div>
-        <div class="col"><input id="recipeOutput" class="form-control" placeholder="Anzahl hergestellt (Output), z.B. 1"></div>
+        <div class="col"><input id="recipeOutput" class="form-control" placeholder="Anzahl hergestellt (Output), z.B. 1" value="1"></div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label class="form-label">Verkaufspreis (normal)</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input id="recipeSellPrice" type="number" step="0.01" class="form-control" placeholder="optional">
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Verkaufspreis Gewerbe</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input id="recipeSellPriceTrade" type="number" step="0.01" class="form-control" placeholder="optional">
+          </div>
+        </div>
       </div>
 
       <div class="mb-2">
@@ -448,29 +470,183 @@ function renderBaseItems(filter=''){
   const list = get('baseItems')||[]; const tb=document.getElementById('baseItemTable'); tb.innerHTML='';
   list.forEach(it=>{
     if((it.name+it.location).toLowerCase().includes(filter.toLowerCase())){
-      tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.location)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editBaseItem('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteBaseItem('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`);
+      const price = it.buyPrice ? it.buyPrice.toFixed(2) + ' $' : '-';
+      tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.location||'')}</td><td class="text-end">${price}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editBaseItem('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteBaseItem('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`);
     }
   });
   enableDrag(tb,'baseItems', ()=>{ renderBaseItems(filter); renderRecipes(); updateCalcSelects(); });
 }
-function openBaseItemModal(){ document.getElementById('baseItemIndex').value=''; document.getElementById('baseItemName').value=''; document.getElementById('baseItemLocation').value=''; baseItemModal.show(); }
-function saveBaseItem(e){ if(e && e.preventDefault) e.preventDefault(); const id=document.getElementById('baseItemIndex').value; const name=document.getElementById('baseItemName').value.trim(); const loc=document.getElementById('baseItemLocation').value.trim(); if(!name) { showToast('Name erforderlich','error'); return; } let arr=get('baseItems')||[]; if(!id) arr.push({id:uuid(),name,location:loc}); else { const i=arr.findIndex(x=>x.id===id); if(i>=0){ arr[i].name=name; arr[i].location=loc; } } set('baseItems',arr); baseItemModal.hide(); showToast('Basis-Item gespeichert','success'); renderBaseItems(); renderRecipes(); updateCalcSelects(); }
-function editBaseItem(id){ const arr=get('baseItems')||[]; const it=arr.find(x=>x.id===id); if(!it) return showToast('Nicht gefunden','error'); document.getElementById('baseItemIndex').value=it.id; document.getElementById('baseItemName').value=it.name; document.getElementById('baseItemLocation').value=it.location||''; baseItemModal.show(); }
-function deleteBaseItem(id){ if(!confirm('Basis-Item löschen? Referenzen in Rezepten werden entfernt.')) return; let arr=get('baseItems')||[]; arr=arr.filter(x=>x.id!==id); set('baseItems',arr); let recipes=get('recipes')||[]; recipes = recipes.map(r=>{ r.ingredients = r.ingredients.filter(i=>i.id!==id); return r; }); set('recipes',recipes); renderBaseItems(); renderRecipes(); updateCalcSelects(); showToast('Basis-Item gelöscht','info'); }
+function openBaseItemModal(){ 
+  document.getElementById('baseItemIndex').value=''; 
+  document.getElementById('baseItemName').value=''; 
+  document.getElementById('baseItemLocation').value=''; 
+  document.getElementById('baseItemBuyPrice').value=''; 
+  baseItemModal.show(); 
+}
+function saveBaseItem(e){ 
+  if(e && e.preventDefault) e.preventDefault(); 
+  const id=document.getElementById('baseItemIndex').value; 
+  const name=document.getElementById('baseItemName').value.trim(); 
+  const loc=document.getElementById('baseItemLocation').value.trim(); 
+  const buyPriceStr = document.getElementById('baseItemBuyPrice').value.trim();
+  const buyPrice = buyPriceStr ? parseFloat(buyPriceStr) : null;
+  if(!name) { showToast('Name erforderlich','error'); return; } 
+  let arr=get('baseItems')||[]; 
+  if(!id) arr.push({id:uuid(),name,location:loc, buyPrice}); 
+  else { 
+    const i=arr.findIndex(x=>x.id===id); 
+    if(i>=0){ 
+      arr[i].name=name; 
+      arr[i].location=loc; 
+      arr[i].buyPrice = buyPrice;
+    } 
+  } 
+  set('baseItems',arr); 
+  baseItemModal.hide(); 
+  showToast('Basis-Item gespeichert','success'); 
+  renderBaseItems(); 
+  renderRecipes(); 
+  updateCalcSelects(); 
+}
+function editBaseItem(id){ 
+  const arr=get('baseItems')||[]; 
+  const it=arr.find(x=>x.id===id); 
+  if(!it) return showToast('Nicht gefunden','error'); 
+  document.getElementById('baseItemIndex').value=it.id; 
+  document.getElementById('baseItemName').value=it.name; 
+  document.getElementById('baseItemLocation').value=it.location||''; 
+  document.getElementById('baseItemBuyPrice').value = it.buyPrice !== null && it.buyPrice !== undefined ? it.buyPrice : '';
+  baseItemModal.show(); 
+}
+function deleteBaseItem(id){ 
+  if(!confirm('Basis-Item löschen? Referenzen in Rezepten werden entfernt.')) return; 
+  let arr=get('baseItems')||[]; 
+  arr=arr.filter(x=>x.id!==id); 
+  set('baseItems',arr); 
+  let recipes=get('recipes')||[]; 
+  recipes = recipes.map(r=>{ r.ingredients = r.ingredients.filter(i=>i.id!==id); return r; }); 
+  set('recipes',recipes); 
+  renderBaseItems(); 
+  renderRecipes(); 
+  updateCalcSelects(); 
+  showToast('Basis-Item gelöscht','info'); 
+}
 
 /* Tools */
-function renderTools(filter=''){ const list=get('tools')||[]; const tb=document.getElementById('toolTable'); tb.innerHTML=''; list.forEach(it=>{ if(it.name.toLowerCase().includes(filter.toLowerCase())) tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editTool('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteTool('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`); }); enableDrag(document.getElementById('toolTable'),'tools',()=>renderTools(filter)); updateRecipeToolSelect(); }
-function openToolModal(){ document.getElementById('toolIndex').value=''; document.getElementById('toolName').value=''; toolModal.show(); }
-function saveTool(e){ if(e && e.preventDefault) e.preventDefault(); const id=document.getElementById('toolIndex').value; const name=document.getElementById('toolName').value.trim(); if(!name){ showToast('Name erforderlich','error'); return; } let arr=get('tools')||[]; if(!id) arr.push({id:uuid(),name}); else { const i=arr.findIndex(x=>x.id===id); if(i>=0) arr[i].name=name; } set('tools',arr); toolModal.hide(); renderTools(); updateRecipeToolSelect(); showToast('Werkzeug gespeichert','success'); }
-function editTool(id){ const arr=get('tools')||[]; const it=arr.find(x=>x.id===id); if(!it) return showToast('Nicht gefunden','error'); document.getElementById('toolIndex').value=it.id; document.getElementById('toolName').value=it.name; toolModal.show(); }
-function deleteTool(id){ if(!confirm('Werkzeug löschen?')) return; let arr=get('tools')||[]; arr=arr.filter(x=>x.id!==id); set('tools',arr); renderTools(); updateRecipeToolSelect(); showToast('Werkzeug gelöscht','info'); }
+function renderTools(filter=''){ 
+  const list=get('tools')||[]; 
+  const tb=document.getElementById('toolTable'); 
+  tb.innerHTML=''; 
+  list.forEach(it=>{ 
+    if(it.name.toLowerCase().includes(filter.toLowerCase())) 
+      tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editTool('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteTool('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`); 
+  }); 
+  enableDrag(document.getElementById('toolTable'),'tools',()=>renderTools(filter)); 
+  updateRecipeToolSelect(); 
+}
+function openToolModal(){ 
+  document.getElementById('toolIndex').value=''; 
+  document.getElementById('toolName').value=''; 
+  toolModal.show(); 
+}
+function saveTool(e){ 
+  if(e && e.preventDefault) e.preventDefault(); 
+  const id=document.getElementById('toolIndex').value; 
+  const name=document.getElementById('toolName').value.trim(); 
+  if(!name){ showToast('Name erforderlich','error'); return; } 
+  let arr=get('tools')||[]; 
+  if(!id) arr.push({id:uuid(),name}); 
+  else { 
+    const i=arr.findIndex(x=>x.id===id); 
+    if(i>=0) arr[i].name=name; 
+  } 
+  set('tools',arr); 
+  toolModal.hide(); 
+  renderTools(); 
+  updateRecipeToolSelect(); 
+  showToast('Werkzeug gespeichert','success'); 
+}
+function editTool(id){ 
+  const arr=get('tools')||[]; 
+  const it=arr.find(x=>x.id===id); 
+  if(!it) return showToast('Nicht gefunden','error'); 
+  document.getElementById('toolIndex').value=it.id; 
+  document.getElementById('toolName').value=it.name; 
+  toolModal.show(); 
+}
+function deleteTool(id){ 
+  if(!confirm('Werkzeug löschen?')) return; 
+  let arr=get('tools')||[]; 
+  arr=arr.filter(x=>x.id!==id); 
+  set('tools',arr); 
+  renderTools(); 
+  updateRecipeToolSelect(); 
+  showToast('Werkzeug gelöscht','info'); 
+}
 
 /* Locations */
-function renderLocations(filter=''){ const list=get('locations')||[]; const tb=document.getElementById('locationTable'); tb.innerHTML=''; list.forEach(it=>{ if((it.name+it.plz).toLowerCase().includes(filter.toLowerCase())) tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.plz)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editLocation('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteLocation('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`); }); enableDrag(document.getElementById('locationTable'),'locations',()=>renderLocations(filter)); updateRecipeLocationSelect(); updateCalcSelects(); }
-function openLocationModal(){ document.getElementById('locationIndex').value=''; document.getElementById('locationName').value=''; document.getElementById('locationPlz').value=''; locationModal.show(); }
-function saveLocation(e){ if(e && e.preventDefault) e.preventDefault(); const id=document.getElementById('locationIndex').value; const name=document.getElementById('locationName').value.trim(); const plz=document.getElementById('locationPlz').value.trim(); if(!name){ showToast('Name erforderlich','error'); return; } let arr=get('locations')||[]; if(!id) arr.push({id:uuid(),name,plz}); else { const i=arr.findIndex(x=>x.id===id); if(i>=0){ arr[i].name=name; arr[i].plz=plz; } } set('locations',arr); locationModal.hide(); renderLocations(); renderRecipes(); updateCalcSelects(); showToast('Ort gespeichert','success'); }
-function editLocation(id){ const arr=get('locations')||[]; const it=arr.find(x=>x.id===id); if(!it) return showToast('Nicht gefunden','error'); document.getElementById('locationIndex').value=it.id; document.getElementById('locationName').value=it.name; document.getElementById('locationPlz').value=it.plz||''; locationModal.show(); }
-function deleteLocation(id){ if(!confirm('Ort löschen? Referenzen in Rezepten werden entfernt.')) return; let arr=get('locations')||[]; arr=arr.filter(x=>x.id!==id); set('locations',arr); let recipes=get('recipes')||[]; recipes = recipes.map(r=>{ if(r.locationId === id) r.locationId=''; return r; }); set('recipes',recipes); renderLocations(); renderRecipes(); updateCalcSelects(); showToast('Ort gelöscht','info'); }
+function renderLocations(filter=''){ 
+  const list=get('locations')||[]; 
+  const tb=document.getElementById('locationTable'); 
+  tb.innerHTML=''; 
+  list.forEach(it=>{ 
+    if((it.name+it.plz).toLowerCase().includes(filter.toLowerCase())) 
+      tb.insertAdjacentHTML('beforeend', `<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.plz)}</td><td class="text-end"><button class="btn btn-sm btn-warning me-1" onclick="editLocation('${it.id}')"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-danger" onclick="deleteLocation('${it.id}')"><i class="bi bi-trash"></i></button></td></tr>`); 
+  }); 
+  enableDrag(document.getElementById('locationTable'),'locations',()=>renderLocations(filter)); 
+  updateRecipeLocationSelect(); 
+  updateCalcSelects(); 
+}
+function openLocationModal(){ 
+  document.getElementById('locationIndex').value=''; 
+  document.getElementById('locationName').value=''; 
+  document.getElementById('locationPlz').value=''; 
+  locationModal.show(); 
+}
+function saveLocation(e){ 
+  if(e && e.preventDefault) e.preventDefault(); 
+  const id=document.getElementById('locationIndex').value; 
+  const name=document.getElementById('locationName').value.trim(); 
+  const plz=document.getElementById('locationPlz').value.trim(); 
+  if(!name){ showToast('Name erforderlich','error'); return; } 
+  let arr=get('locations')||[]; 
+  if(!id) arr.push({id:uuid(),name,plz}); 
+  else { 
+    const i=arr.findIndex(x=>x.id===id); 
+    if(i>=0){ 
+      arr[i].name=name; 
+      arr[i].plz=plz; 
+    } 
+  } 
+  set('locations',arr); 
+  locationModal.hide(); 
+  renderLocations(); 
+  renderRecipes(); 
+  updateCalcSelects(); 
+  showToast('Ort gespeichert','success'); 
+}
+function editLocation(id){ 
+  const arr=get('locations')||[]; 
+  const it=arr.find(x=>x.id===id); 
+  if(!it) return showToast('Nicht gefunden','error'); 
+  document.getElementById('locationIndex').value=it.id; 
+  document.getElementById('locationName').value=it.name; 
+  document.getElementById('locationPlz').value=it.plz||''; 
+  locationModal.show(); 
+}
+function deleteLocation(id){ 
+  if(!confirm('Ort löschen? Referenzen in Rezepten werden entfernt.')) return; 
+  let arr=get('locations')||[]; 
+  arr=arr.filter(x=>x.id!==id); 
+  set('locations',arr); 
+  let recipes=get('recipes')||[]; 
+  recipes = recipes.map(r=>{ if(r.locationId === id) r.locationId=''; return r; }); 
+  set('recipes',recipes); 
+  renderLocations(); 
+  renderRecipes(); 
+  updateCalcSelects(); 
+  showToast('Ort gelöscht','info'); 
+}
 
 /* Recipes */
 function updateRecipeLocationSelect(){
@@ -484,8 +660,17 @@ const ingredientList = document.getElementById('ingredientList');
 const addIngredientBtn = document.getElementById('addIngredientBtn');
 
 function openRecipeModal(){
-  document.getElementById('recipeIndex').value=''; document.getElementById('recipeName').value=''; document.getElementById('recipeDuration').value=''; document.getElementById('recipeOutput').value='1';
-  ingredientList.innerHTML=''; updateRecipeLocationSelect(); updateRecipeToolSelect(); addIngredientRow(); recipeModal.show();
+  document.getElementById('recipeIndex').value='';
+  document.getElementById('recipeName').value='';
+  document.getElementById('recipeDuration').value='';
+  document.getElementById('recipeOutput').value='1';
+  document.getElementById('recipeSellPrice').value='';
+  document.getElementById('recipeSellPriceTrade').value='';
+  ingredientList.innerHTML='';
+  updateRecipeLocationSelect(); 
+  updateRecipeToolSelect(); 
+  addIngredientRow(); 
+  recipeModal.show();
 }
 
 function addIngredientRow(data={}){
@@ -507,7 +692,11 @@ function addIngredientRow(data={}){
   del.onclick=()=>{ div.remove(); setTimeout(updateIngredientBtn,0); };
   div.appendChild(sel); div.appendChild(amt); div.appendChild(del); ingredientList.appendChild(div); updateIngredientBtn();
 }
-function updateIngredientBtn(){ const used=[...ingredientList.querySelectorAll('select')].map(s=>s.value).filter(Boolean); const available=allItemsCombined().filter(it=>!used.includes(it.id)); addIngredientBtn.disabled = available.length===0; }
+function updateIngredientBtn(){ 
+  const used=[...ingredientList.querySelectorAll('select')].map(s=>s.value).filter(Boolean); 
+  const available=allItemsCombined().filter(it=>!used.includes(it.id)); 
+  addIngredientBtn.disabled = available.length===0; 
+}
 
 function hasCycle(targetId, ingredients, visited=new Set()){
   for(const ing of ingredients){
@@ -532,17 +721,37 @@ function saveRecipe(e){
   const locationId=document.getElementById('recipeLocation').value||'';
   const toolVal=document.getElementById('recipeTools').value || '';
   const toolSel = toolVal ? [toolVal] : [];
+  const sellPriceStr = document.getElementById('recipeSellPrice').value.trim();
+  const sellPriceTradeStr = document.getElementById('recipeSellPriceTrade').value.trim();
+  const sellPrice = sellPriceStr ? parseFloat(sellPriceStr) : null;
+  const sellPriceTrade = sellPriceTradeStr ? parseFloat(sellPriceTradeStr) : null;
+
   const ingredientDivs=[...ingredientList.querySelectorAll('div')];
   const ingredients=ingredientDivs.map(d=>{ const s=d.querySelector('select'); const a=d.querySelector('input'); return {id:s.value, amount:Math.max(1, parseInt(a.value)||1)}; });
   if(ingredients.length===0){ showToast('Mindestens eine Zutat erforderlich','error'); return; }
-  const recipes = get('recipes')||[]; let recipeId = uuid(); if(idx!==null && recipes[idx] && recipes[idx].id) recipeId = recipes[idx].id;
+  const recipes = get('recipes')||[]; 
+  let recipeId = uuid(); 
+  if(idx!==null && recipes[idx] && recipes[idx].id) recipeId = recipes[idx].id;
   if(hasCycle(recipeId, ingredients)){ showToast('Zyklus erkannt — Speichern abgebrochen','error'); return; }
-  const recipeObj = { id: recipeId, name, duration, output, locationId, tools: toolSel, ingredients };
+  const recipeObj = { 
+    id: recipeId, 
+    name, 
+    duration, 
+    output, 
+    locationId, 
+    tools: toolSel, 
+    ingredients,
+    sellPrice,
+    sellPriceTrade
+  };
   if(idx===null) recipes.push(recipeObj); else recipes[idx] = recipeObj;
-  set('recipes', recipes); recipeModal.hide(); renderRecipes(); updateCalcSelects(); showToast('Rezept gespeichert','success');
+  set('recipes', recipes); 
+  recipeModal.hide(); 
+  renderRecipes(); 
+  updateCalcSelects(); 
+  showToast('Rezept gespeichert','success');
 }
 
-/* Build scaled tree to show correct quantities (recursive proportional scaling) */
 function buildTree(recipeId, desiredQty){
   const recipes = get('recipes')||[];
   const baseItems = get('baseItems')||[];
@@ -567,13 +776,19 @@ function buildTree(recipeId, desiredQty){
 
 /* Render recipes */
 function renderRecipes(filter=''){
-  const recipes=get('recipes')||[]; const tb=document.getElementById('recipeTable'); tb.innerHTML='';
+  const recipes=get('recipes')||[]; 
+  const tb=document.getElementById('recipeTable'); 
+  tb.innerHTML='';
   recipes.forEach((r,idx)=>{
     if(!r.name.toLowerCase().includes(filter.toLowerCase())) return;
     const top=(r.ingredients||[]).map(ing=>{ const it=allItemsCombined().find(x=>x.id===ing.id); return it?`${it.name} (${ing.amount}x)`:`[gelöscht] (${ing.amount}x)`; }).join(', ');
     const toolName = (r.tools && r.tools.length) ? ((get('tools')||[]).find(t=>t.id===r.tools[0])||{name:'[gelöscht]'}).name : '';
-    const loc=(get('locations')||[]).find(l=>l.id===r.locationId); const locName=loc?loc.name:'';
-    const rowHtml=`<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(top)}</td><td>${escapeHtml(toolName)}</td><td>${escapeHtml(r.duration||'')}</td><td>${escapeHtml(String(r.output||1))}</td><td>${escapeHtml(locName)}</td>
+    const loc=(get('locations')||[]).find(l=>l.id===r.locationId); 
+    const locName=loc?loc.name:'';
+    const sell = r.sellPrice ? r.sellPrice.toFixed(2)+' $' : '-';
+    const sellTrade = r.sellPriceTrade ? r.sellPriceTrade.toFixed(2)+' $' : '-';
+
+    const rowHtml=`<tr data-data="1"><td class="drag-handle">≡</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(top)}</td><td>${escapeHtml(toolName)}</td><td>${escapeHtml(r.duration||'')}</td><td>${escapeHtml(String(r.output||1))}</td><td class="text-end">${sell}</td><td class="text-end">${sellTrade}</td><td>${escapeHtml(locName)}</td>
       <td class="text-end action-cell"><div class="recipe-actions">
         <button class="btn btn-sm btn-warning" onclick="editRecipe(${idx})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-secondary" onclick="toggleDetail(${idx})"><i class="bi bi-arrows-angle-expand"></i></button>
@@ -581,7 +796,7 @@ function renderRecipes(filter=''){
       </div></td></tr>`;
     tb.insertAdjacentHTML('beforeend', rowHtml);
     const detailId = `recipe-detail-${idx}`;
-    tb.insertAdjacentHTML('beforeend', `<tr id="${detailId}" data-data="0" class="hidden"><td colspan="8" style="padding:6px 1rem;"></td></tr>`);
+    tb.insertAdjacentHTML('beforeend', `<tr id="${detailId}" data-data="0" class="hidden"><td colspan="10" style="padding:6px 1rem;"></td></tr>`);
     const detailRow = document.getElementById(detailId);
     if(detailRow){
       const container = document.createElement('div'); container.className='tree';
@@ -618,8 +833,35 @@ function renderRecipes(filter=''){
 }
 
 function toggleDetail(idx){ const el=document.getElementById(`recipe-detail-${idx}`); if(!el) return; el.classList.toggle('hidden'); }
-function editRecipe(idx){ const recipes=get('recipes')||[]; const r=recipes[idx]; if(!r) return showToast('Nicht gefunden','error'); document.getElementById('recipeIndex').value=String(idx); document.getElementById('recipeName').value=r.name; document.getElementById('recipeDuration').value=r.duration||''; document.getElementById('recipeOutput').value=r.output||1; updateRecipeLocationSelect(); updateRecipeToolSelect(); document.getElementById('recipeLocation').value = r.locationId || ''; document.getElementById('recipeTools').value = (r.tools && r.tools.length) ? r.tools[0] : ''; ingredientList.innerHTML=''; (r.ingredients||[]).forEach(ing=>addIngredientRow(ing)); recipeModal.show(); }
-function deleteRecipe(idx){ if(!confirm('Rezept löschen? Referenzen in anderen Rezepten werden entfernt.')) return; const recipes=get('recipes')||[]; const id=recipes[idx]?.id; recipes.splice(idx,1); const updated = recipes.map(r=>{ r.ingredients = r.ingredients.filter(i=>i.id!==id); return r; }); set('recipes',updated); renderRecipes(); updateCalcSelects(); showToast('Rezept gelöscht','info'); }
+function editRecipe(idx){ 
+  const recipes=get('recipes')||[]; 
+  const r=recipes[idx]; 
+  if(!r) return showToast('Nicht gefunden','error'); 
+  document.getElementById('recipeIndex').value=String(idx); 
+  document.getElementById('recipeName').value=r.name; 
+  document.getElementById('recipeDuration').value=r.duration||''; 
+  document.getElementById('recipeOutput').value=r.output||1; 
+  document.getElementById('recipeSellPrice').value = r.sellPrice !== null && r.sellPrice !== undefined ? r.sellPrice : '';
+  document.getElementById('recipeSellPriceTrade').value = r.sellPriceTrade !== null && r.sellPriceTrade !== undefined ? r.sellPriceTrade : '';
+  updateRecipeLocationSelect(); 
+  updateRecipeToolSelect(); 
+  document.getElementById('recipeLocation').value = r.locationId || ''; 
+  document.getElementById('recipeTools').value = (r.tools && r.tools.length) ? r.tools[0] : ''; 
+  ingredientList.innerHTML=''; 
+  (r.ingredients||[]).forEach(ing=>addIngredientRow(ing)); 
+  recipeModal.show(); 
+}
+function deleteRecipe(idx){ 
+  if(!confirm('Rezept löschen? Referenzen in anderen Rezepten werden entfernt.')) return; 
+  const recipes=get('recipes')||[]; 
+  const id=recipes[idx]?.id; 
+  recipes.splice(idx,1); 
+  const updated = recipes.map(r=>{ r.ingredients = r.ingredients.filter(i=>i.id!==id); return r; }); 
+  set('recipes',updated); 
+  renderRecipes(); 
+  updateCalcSelects(); 
+  showToast('Rezept gelöscht','info'); 
+}
 
 /* ---------- Calculator ---------- */
 const calcCart = []; // {id, qty}
@@ -640,7 +882,16 @@ function fillExistingItemSelect(){
 
 function updateCalcSelects(){ fillCalcRecipeSelect(); fillExistingItemSelect(); renderCalcCart(); renderExistingList(); }
 
-function calcAddToList(){ const sel=document.getElementById('calcRecipeSelect'); const qty=Math.max(1, parseInt(document.getElementById('calcQty').value)||1); const id=sel.value; if(!id){ showToast('Kein Rezept ausgewählt','error'); return; } const ex=calcCart.find(x=>x.id===id); if(ex) ex.qty+=qty; else calcCart.push({id,qty}); renderCalcCart(); updateCalcSelects(); }
+function calcAddToList(){ 
+  const sel=document.getElementById('calcRecipeSelect'); 
+  const qty=Math.max(1, parseInt(document.getElementById('calcQty').value)||1); 
+  const id=sel.value; 
+  if(!id){ showToast('Kein Rezept ausgewählt','error'); return; } 
+  const ex=calcCart.find(x=>x.id===id); 
+  if(ex) ex.qty+=qty; else calcCart.push({id,qty}); 
+  renderCalcCart(); 
+  updateCalcSelects(); 
+}
 
 function renderCalcCart(){
   const container = document.getElementById('calcCart');
@@ -651,7 +902,6 @@ function renderCalcCart(){
     const itemDiv = document.createElement('div');
     itemDiv.className = 'calc-item';
 
-    // qty column (left)
     const qtyCol = document.createElement('div'); qtyCol.className = 'col-qty';
     const qtyInput = document.createElement('input');
     qtyInput.type = 'number';
@@ -661,11 +911,9 @@ function renderCalcCart(){
     qtyInput.onchange = () => updateCartQty(idx, qtyInput.value);
     qtyCol.appendChild(qtyInput);
 
-    // name column (middle)
     const nameCol = document.createElement('div'); nameCol.className = 'col-name';
     nameCol.textContent = r.name;
 
-    // action column (right)
     const actionCol = document.createElement('div'); actionCol.className = 'col-action';
     const delBtn = document.createElement('button');
     delBtn.className = 'btn btn-sm btn-danger';
@@ -684,8 +932,17 @@ function renderCalcCart(){
 function updateCartQty(i,v){ calcCart[i].qty=Math.max(1,parseInt(v)||1); renderCalcCart(); updateCalcSelects(); }
 function removeCartItem(i){ calcCart.splice(i,1); renderCalcCart(); updateCalcSelects(); }
 
-/* EXISTING list: qty left, name middle, delete right */
-function addExistingItem(){ const sel=document.getElementById('existingItemSelect'); const qty=Math.max(1, parseInt(document.getElementById('existingQty').value)||1); const id=sel.value; if(!id){ showToast('Kein Item ausgewählt','error'); return; } const ex=existingItems.find(x=>x.id===id); if(ex) ex.qty+=qty; else existingItems.push({id,qty}); renderExistingList(); updateCalcSelects(); }
+/* EXISTING list */
+function addExistingItem(){ 
+  const sel=document.getElementById('existingItemSelect'); 
+  const qty=Math.max(1, parseInt(document.getElementById('existingQty').value)||1); 
+  const id=sel.value; 
+  if(!id){ showToast('Kein Item ausgewählt','error'); return; } 
+  const ex=existingItems.find(x=>x.id===id); 
+  if(ex) ex.qty+=qty; else existingItems.push({id,qty}); 
+  renderExistingList(); 
+  updateCalcSelects(); 
+}
 
 function renderExistingList(){
   const container = document.getElementById('existingList');
@@ -696,7 +953,6 @@ function renderExistingList(){
     const itemDiv = document.createElement('div');
     itemDiv.className = 'calc-item';
 
-    // qty
     const qtyCol = document.createElement('div'); qtyCol.className='col-qty';
     const qtyInput = document.createElement('input');
     qtyInput.type = 'number';
@@ -706,11 +962,9 @@ function renderExistingList(){
     qtyInput.onchange = () => updateExistingQty(idx, qtyInput.value);
     qtyCol.appendChild(qtyInput);
 
-    // name
     const nameCol = document.createElement('div'); nameCol.className='col-name';
     nameCol.textContent = it.name;
 
-    // action
     const actionCol = document.createElement('div'); actionCol.className='col-action';
     const delBtn = document.createElement('button');
     delBtn.className = 'btn btn-sm btn-danger';
@@ -733,59 +987,136 @@ function parseDurationToSeconds(s){ if(!s) return 0; const m=String(s).trim().ma
 
 /* compute functions */
 function computeRequirementsWithExisting(cart, existing){
-  const recipes=get('recipes')||[]; const baseItems=get('baseItems')||[]; const recipeMap={}; recipes.forEach(r=>recipeMap[r.id]=r);
-  const desired1={}; cart.forEach(c=>desired1[c.id]=(desired1[c.id]||0)+c.qty);
-  const recipeOps_total={}; const totalBaseReq={};
+  const recipes=get('recipes')||[]; 
+  const baseItems=get('baseItems')||[]; 
+  const recipeMap={}; 
+  recipes.forEach(r=>recipeMap[r.id]=r);
+  const desired1={}; 
+  cart.forEach(c=>desired1[c.id]=(desired1[c.id]||0)+c.qty);
+  const recipeOps_total={}; 
+  const totalBaseReq={};
   const q1=Object.keys(desired1);
   while(q1.length){
-    const id=q1.shift(); const qtyNeeded=desired1[id]||0;
+    const id=q1.shift(); 
+    const qtyNeeded=desired1[id]||0;
     const isBase=baseItems.find(b=>b.id===id);
-    if(isBase){ totalBaseReq[id]=(totalBaseReq[id]||0)+qtyNeeded; delete desired1[id]; continue; }
-    const r=recipeMap[id]; if(!r){ delete desired1[id]; continue; }
-    const outPer=parseInt(r.output)||1; const ops=Math.ceil(qtyNeeded/outPer);
+    if(isBase){ 
+      totalBaseReq[id]=(totalBaseReq[id]||0)+qtyNeeded; 
+      delete desired1[id]; 
+      continue; 
+    }
+    const r=recipeMap[id]; 
+    if(!r){ delete desired1[id]; continue; }
+    const outPer=parseInt(r.output)||1; 
+    const ops=Math.ceil(qtyNeeded/outPer);
     recipeOps_total[id]=(recipeOps_total[id]||0)+ops;
-    r.ingredients.forEach(ing=>{ const add=(ing.amount||0)*ops; const baseFound=baseItems.find(b=>b.id===ing.id); if(baseFound) totalBaseReq[ing.id]=(totalBaseReq[ing.id]||0)+add; else { desired1[ing.id]=(desired1[ing.id]||0)+add; if(!q1.includes(ing.id)) q1.push(ing.id); } });
+    r.ingredients.forEach(ing=>{ 
+      const add=(ing.amount||0)*ops; 
+      const baseFound=baseItems.find(b=>b.id===ing.id); 
+      if(baseFound) totalBaseReq[ing.id]=(totalBaseReq[ing.id]||0)+add; 
+      else { 
+        desired1[ing.id]=(desired1[ing.id]||0)+add; 
+        if(!q1.includes(ing.id)) q1.push(ing.id); 
+      } 
+    });
     delete desired1[id];
   }
 
-  const existingMap={}; existing.forEach(e=>existingMap[e.id]=(existingMap[e.id]||0)+e.qty);
-  const desired2={}; cart.forEach(c=>desired2[c.id]=(desired2[c.id]||0)+c.qty);
-  Object.keys(desired2).forEach(id=>{ if(existingMap[id]){ const use=Math.min(desired2[id], existingMap[id]); desired2[id]-=use; existingMap[id]-=use; if(desired2[id]===0) delete desired2[id]; }});
-  const recipeOps_adj={}; const adjustedBaseReq={};
+  const existingMap={}; 
+  existing.forEach(e=>existingMap[e.id]=(existingMap[e.id]||0)+e.qty);
+  const desired2={}; 
+  cart.forEach(c=>desired2[c.id]=(desired2[c.id]||0)+c.qty);
+  Object.keys(desired2).forEach(id=>{ 
+    if(existingMap[id]){ 
+      const use=Math.min(desired2[id], existingMap[id]); 
+      desired2[id]-=use; 
+      existingMap[id]-=use; 
+      if(desired2[id]===0) delete desired2[id]; 
+    }
+  });
+  const recipeOps_adj={}; 
+  const adjustedBaseReq={};
   const q2=Object.keys(desired2);
   while(q2.length){
-    const id=q2.shift(); const qtyNeeded=desired2[id]||0;
+    const id=q2.shift(); 
+    const qtyNeeded=desired2[id]||0;
     const isBase=baseItems.find(b=>b.id===id);
     if(isBase){
-      let need=qtyNeeded; if(existingMap[id]){ const use=Math.min(need, existingMap[id]); need-=use; existingMap[id]-=use; }
+      let need=qtyNeeded; 
+      if(existingMap[id]){ 
+        const use=Math.min(need, existingMap[id]); 
+        need-=use; 
+        existingMap[id]-=use; 
+      }
       if(need>0) adjustedBaseReq[id]=(adjustedBaseReq[id]||0)+need;
-      delete desired2[id]; continue;
+      delete desired2[id]; 
+      continue;
     }
-    const r=recipeMap[id]; if(!r){ delete desired2[id]; continue; }
-    const outPer=parseInt(r.output)||1; const ops=Math.ceil(qtyNeeded/outPer);
+    const r=recipeMap[id]; 
+    if(!r){ delete desired2[id]; continue; }
+    const outPer=parseInt(r.output)||1; 
+    const ops=Math.ceil(qtyNeeded/outPer);
     recipeOps_adj[id]=(recipeOps_adj[id]||0)+ops;
     r.ingredients.forEach(ing=>{
       let add=(ing.amount||0)*ops;
-      if(existingMap[ing.id]){ const use=Math.min(add, existingMap[ing.id]); add-=use; existingMap[ing.id]-=use; }
+      if(existingMap[ing.id]){ 
+        const use=Math.min(add, existingMap[ing.id]); 
+        add-=use; 
+        existingMap[ing.id]-=use; 
+      }
       if(add>0){
         const baseFound=baseItems.find(b=>b.id===ing.id);
         if(baseFound) adjustedBaseReq[ing.id]=(adjustedBaseReq[ing.id]||0)+add;
-        else { desired2[ing.id]=(desired2[ing.id]||0)+add; if(!q2.includes(ing.id)) q2.push(ing.id); }
+        else { 
+          desired2[ing.id]=(desired2[ing.id]||0)+add; 
+          if(!q2.includes(ing.id)) q2.push(ing.id); 
+        }
       }
     });
     delete desired2[id];
   }
 
-  const involved=Object.keys(recipeOps_adj); const adj={}; involved.forEach(id=>adj[id]=new Set());
-  involved.forEach(id=>{ const r=recipeMap[id]; if(!r) return; r.ingredients.forEach(ing=>{ if(involved.includes(ing.id)) adj[id].add(ing.id); }); });
-  const visited={}; const order=[];
-  function dfs(u){ if(visited[u]) return; visited[u]=true; adj[u].forEach(v=>dfs(v)); order.push(u); }
+  const involved=Object.keys(recipeOps_adj); 
+  const adj={}; 
+  involved.forEach(id=>adj[id]=new Set());
+  involved.forEach(id=>{ 
+    const r=recipeMap[id]; 
+    if(!r) return; 
+    r.ingredients.forEach(ing=>{ 
+      if(involved.includes(ing.id)) adj[id].add(ing.id); 
+    }); 
+  });
+  const visited={}; 
+  const order=[];
+  function dfs(u){ 
+    if(visited[u]) return; 
+    visited[u]=true; 
+    adj[u].forEach(v=>dfs(v)); 
+    order.push(u); 
+  }
   involved.forEach(id=>dfs(id));
   const steps=order.map(id=>{
-    const r=recipeMap[id]; const ops=recipeOps_adj[id]||0; const outPer=parseInt(r.output)||1; const produces=ops*outPer;
+    const r=recipeMap[id]; 
+    const ops=recipeOps_adj[id]||0; 
+    const outPer=parseInt(r.output)||1; 
+    const produces=ops*outPer;
     const ingredients=(r.ingredients||[]).map(i=>({id:i.id, qty:(i.amount||0)*ops}));
-    const perOpSec=parseDurationToSeconds(r.duration||''); const totalSec=perOpSec*ops;
-    return { id, name:r.name, ops, outPer, produces, ingredients, perOpSec, totalSec, locationId:r.locationId||'', tools:r.tools||[] };
+    const perOpSec=parseDurationToSeconds(r.duration||''); 
+    const totalSec=perOpSec*ops;
+    return { 
+      id, 
+      name:r.name, 
+      ops, 
+      outPer, 
+      produces, 
+      ingredients, 
+      perOpSec, 
+      totalSec, 
+      locationId:r.locationId||'', 
+      tools:r.tools||[],
+      sellPrice: r.sellPrice,
+      sellPriceTrade: r.sellPriceTrade
+    };
   });
   const totalSeconds=steps.reduce((s,st)=>s+(st.totalSec||0),0);
   return { totalBaseReq, adjustedBaseReq, recipeOps_total, recipeOps_adj, steps, totalSeconds };
@@ -810,10 +1141,49 @@ function makeCard(title, id, innerHtml){
   card.appendChild(header); card.appendChild(body); return card;
 }
 
+function calculateProfit(steps, totalBaseReq, adjustedBaseReq) {
+  let totalCost = 0;
+  let totalRevenueNormal = 0;
+  let totalRevenueTrade = 0;
+
+  // Kosten der Basis-Items (nach Abzug)
+  const baseItems = get('baseItems') || [];
+  Object.entries(adjustedBaseReq || {}).forEach(([id, qty]) => {
+    const base = baseItems.find(b => b.id === id);
+    if (base && base.buyPrice != null) {
+      totalCost += qty * base.buyPrice;
+    }
+  });
+
+  // Umsatz aus verkauften Rezepten (finale Outputs)
+  steps.forEach(st => {
+    if (st.sellPrice != null) {
+      totalRevenueNormal += st.produces * st.sellPrice;
+    }
+    if (st.sellPriceTrade != null) {
+      totalRevenueTrade += st.produces * st.sellPriceTrade;
+    }
+  });
+
+  const profitNormal = totalRevenueNormal - totalCost;
+  const profitTrade = totalRevenueTrade - totalCost;
+
+  return {
+    totalCost: totalCost,
+    revenueNormal: totalRevenueNormal,
+    revenueTrade: totalRevenueTrade,
+    profitNormal: profitNormal,
+    profitTrade: profitTrade
+  };
+}
+
 function renderCalcResult(data){
-  const area=document.getElementById('calcResultArea'); area.innerHTML='';
+  const area=document.getElementById('calcResultArea'); 
+  area.innerHTML='';
   if(!data) return;
-  const result = data.result; const baseItems = get('baseItems')||[]; const locs = get('locations')||[];
+  const result = data.result; 
+  const baseItems = get('baseItems')||[]; 
+  const locs = get('locations')||[];
 
   const totalList = Object.entries(result.totalBaseReq||{}).map(([id,qty])=>({ id, name: (baseItems.find(b=>b.id===id)||{name:'[gelöscht]'}).name, qty }));
   const adjustedList = Object.entries(result.adjustedBaseReq||{}).map(([id,qty])=>({ id, name: (baseItems.find(b=>b.id===id)||{name:'[gelöscht]'}).name, qty }));
@@ -852,9 +1222,20 @@ function renderCalcResult(data){
 
   let steps = result.steps || [];
   if(data.sortMethod === 'location'){
-    const groups = {}; steps.forEach(st=>{ const lid = st.locationId || '(kein Ort)'; if(!groups[lid]) groups[lid]=[]; groups[lid].push(st); });
-    const locList = Object.keys(groups).sort((a,b)=>{ const an=(a==='(kein Ort)')?'':((locs.find(x=>x.id===a)||{name:''}).name); const bn=(b==='(kein Ort)')?'':((locs.find(x=>x.id===b)||{name:''}).name); return an.localeCompare(bn); });
-    const newSteps=[]; locList.forEach(lid=>groups[lid].forEach(s=>newSteps.push(s))); steps=newSteps;
+    const groups = {}; 
+    steps.forEach(st=>{ 
+      const lid = st.locationId || '(kein Ort)'; 
+      if(!groups[lid]) groups[lid]=[]; 
+      groups[lid].push(st); 
+    });
+    const locList = Object.keys(groups).sort((a,b)=>{ 
+      const an=(a==='(kein Ort)')?'':((locs.find(x=>x.id===a)||{name:''}).name); 
+      const bn=(b==='(kein Ort)')?'':((locs.find(x=>x.id===b)||{name:''}).name); 
+      return an.localeCompare(bn); 
+    });
+    const newSteps=[]; 
+    locList.forEach(lid=>groups[lid].forEach(s=>newSteps.push(s))); 
+    steps=newSteps;
   }
 
   let stepsHtml='';
@@ -870,8 +1251,64 @@ function renderCalcResult(data){
   }
   area.appendChild(makeCard('Schritte', 'calc-steps', stepsHtml));
 
+  // Profit-Berechnung
+  const profit = calculateProfit(steps, result.totalBaseReq, result.adjustedBaseReq);
+  let profitHtml = `
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="card border-success">
+          <div class="card-body p-3 text-center">
+            <div class="text-muted small">Gesamtkosten (Basis-Items)</div>
+            <h5 class="mb-0">${profit.totalCost.toFixed(2)} $</h5>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-primary">
+          <div class="card-body p-3 text-center">
+            <div class="text-muted small">Verkaufspreis (normal)</div>
+            <h5 class="mb-0">${profit.revenueNormal.toFixed(2)} $</h5>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-info">
+          <div class="card-body p-3 text-center">
+            <div class="text-muted small">Verkaufspreis Gewerbe</div>
+            <h5 class="mb-0">${profit.revenueTrade.toFixed(2)} $</h5>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3 mt-2">
+      <div class="col-md-6">
+        <div class="card ${profit.profitNormal >= 0 ? 'border-success' : 'border-danger'}">
+          <div class="card-body p-3 text-center">
+            <div class="text-muted small">Gewinn/Verlust (normal)</div>
+            <h4 class="mb-0 ${profit.profitNormal >= 0 ? 'text-success' : 'text-danger'}">${profit.profitNormal.toFixed(2)} $</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card ${profit.profitTrade >= 0 ? 'border-success' : 'border-danger'}">
+          <div class="card-body p-3 text-center">
+            <div class="text-muted small">Gewinn/Verlust (Gewerbe)</div>
+            <h4 class="mb-0 ${profit.profitTrade >= 0 ? 'text-success' : 'text-danger'}">${profit.profitTrade.toFixed(2)} $</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const profitCard = document.createElement('div'); 
+  profitCard.className='card mb-2'; 
+  profitCard.innerHTML = `<div class="card-header py-1"><strong>Wirtschaftlichkeit</strong></div><div class="card-body p-3">${profitHtml}</div>`;
+  area.appendChild(profitCard);
+
   const summaryHTML = `<div class="small text-muted">Gesamtzeit: <strong>${secsToReadable(result.totalSeconds)}</strong></div>`;
-  const summaryCard = document.createElement('div'); summaryCard.className='card mb-2'; summaryCard.innerHTML = `<div class="card-header py-1"><strong>Zusammenfassung</strong></div><div class="card-body p-2">${summaryHTML}</div>`;
+  const summaryCard = document.createElement('div'); 
+  summaryCard.className='card mb-2'; 
+  summaryCard.innerHTML = `<div class="card-header py-1"><strong>Zusammenfassung</strong></div><div class="card-body p-2">${summaryHTML}</div>`;
   area.appendChild(summaryCard);
 }
 
@@ -879,7 +1316,9 @@ function renderCalcResult(data){
 function exportCalcAsMarkdown(data){
   if(!data) data=lastCalcResult;
   if(!data) return '';
-  const recipes=get('recipes')||[]; const baseItems=get('baseItems')||[]; const locs=get('locations')||[];
+  const recipes=get('recipes')||[]; 
+  const baseItems=get('baseItems')||[]; 
+  const locs=get('locations')||[];
   const lines=[];
   lines.push(`# Crafting Kalkulation`);
   lines.push('');
@@ -901,7 +1340,21 @@ function exportCalcAsMarkdown(data){
   else Object.entries(adj).forEach(([id,qty])=>{ const b=baseItems.find(bb=>bb.id===id)||{name:'[gelöscht]'}; lines.push(`- ${qty}x ${b.name}`); });
   lines.push('');
   lines.push(`**Schritte:**`);
-  data.result.steps.forEach((st, idx)=>{ const locName=(st.locationId && (locs.find(l=>l.id===st.locationId))) ? (locs.find(l=>l.id===st.locationId).name) : 'kein Ort'; const toolsText = (st.tools && st.tools.length) ? ' • Werkzeuge: ' + st.tools.map(tid => (get('tools')||[]).find(tt=>tt.id===tid)?.name || '[gelöscht]').join(', ') : ''; lines.push(`${idx+1}. **${st.name}** — ${st.ops} Durchgänge, erzeugt ${st.produces}${toolsText} — Ort: ${locName} — Zeit: ${secsToReadable(st.totalSec)}`); lines.push(`   - Benötigt: ${st.ingredients.map(i=>{ const it=allItemsCombined().find(x=>x.id===i.id)||{name:'[gelöscht]'}; return `${i.qty}x ${it.name}`; }).join(', ')}`); });
+  data.result.steps.forEach((st, idx)=>{ 
+    const locName=(st.locationId && (locs.find(l=>l.id===st.locationId))) ? (locs.find(l=>l.id===st.locationId).name) : 'kein Ort'; 
+    const toolsText = (st.tools && st.tools.length) ? ' • Werkzeuge: ' + st.tools.map(tid => (get('tools')||[]).find(tt=>tt.id===tid)?.name || '[gelöscht]').join(', ') : ''; 
+    lines.push(`${idx+1}. **${st.name}** — ${st.ops} Durchgänge, erzeugt ${st.produces}${toolsText} — Ort: ${locName} — Zeit: ${secsToReadable(st.totalSec)}`); 
+    lines.push(`   - Benötigt: ${st.ingredients.map(i=>{ const it=allItemsCombined().find(x=>x.id===i.id)||{name:'[gelöscht]'}; return `${i.qty}x ${it.name}`; }).join(', ')}`); 
+  });
+  lines.push('');
+  
+  const profit = calculateProfit(data.result.steps, data.result.totalBaseReq, data.result.adjustedBaseReq);
+  lines.push(`**Wirtschaftlichkeit:**`);
+  lines.push(`- Gesamtkosten: ${profit.totalCost.toFixed(2)} $`);
+  lines.push(`- Umsatz normal: ${profit.revenueNormal.toFixed(2)} $`);
+  lines.push(`- Umsatz Gewerbe: ${profit.revenueTrade.toFixed(2)} $`);
+  lines.push(`- Gewinn normal: ${profit.profitNormal.toFixed(2)} $`);
+  lines.push(`- Gewinn Gewerbe: ${profit.profitTrade.toFixed(2)} $`);
   lines.push('');
   lines.push(`**Gesamtzeit:** ${secsToReadable(data.result.totalSeconds)}`);
   return lines.join('\n');
@@ -915,12 +1368,27 @@ document.getElementById('copyCalcBtn').addEventListener('click', ()=>{
 
 /* import/export */
 document.getElementById('exportAllBtn').addEventListener('click', ()=>{
-  const all = { baseItems:get('baseItems'), tools:get('tools'), locations:get('locations'), recipes:get('recipes') };
+  const all = { 
+    baseItems:get('baseItems'), 
+    tools:get('tools'), 
+    locations:get('locations'), 
+    recipes:get('recipes') 
+  };
   const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'crafting-data.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  const url = URL.createObjectURL(blob); 
+  const a = document.createElement('a'); 
+  a.href = url; 
+  a.download = 'crafting-data.json'; 
+  document.body.appendChild(a); 
+  a.click(); 
+  a.remove(); 
+  URL.revokeObjectURL(url);
 });
 document.getElementById('importFile').addEventListener('change', (ev)=>{
-  const f = ev.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = (e)=>{
+  const f = ev.target.files[0]; 
+  if(!f) return; 
+  const reader = new FileReader(); 
+  reader.onload = (e)=>{
     try{
       const data = JSON.parse(e.target.result);
       if(data.baseItems) set('baseItems', data.baseItems);
@@ -928,13 +1396,36 @@ document.getElementById('importFile').addEventListener('change', (ev)=>{
       if(data.locations) set('locations', data.locations);
       if(data.recipes) set('recipes', data.recipes);
       showToast('Importiert','success');
-      renderBaseItems(); renderTools(); renderLocations(); renderRecipes(); updateCalcSelects();
-    }catch(err){ showToast('Fehler beim Import: '+err.message,'error'); }
+      renderBaseItems(); 
+      renderTools(); 
+      renderLocations(); 
+      renderRecipes(); 
+      updateCalcSelects();
+    }catch(err){ 
+      showToast('Fehler beim Import: '+err.message,'error'); 
+    }
   };
   reader.readAsText(f);
 });
 
-function clearStorage(){ if(!confirm('Alles löschen?')) return; localStorage.clear(); set('baseItems',[]); set('tools',[]); set('locations',[]); set('recipes',[]); calcCart.length=0; existingItems.length=0; document.getElementById('calcResultArea').innerHTML=''; lastCalcResult=null; renderBaseItems(); renderTools(); renderLocations(); renderRecipes(); updateCalcSelects(); showToast('Alles gelöscht','info'); }
+function clearStorage(){ 
+  if(!confirm('Alles löschen?')) return; 
+  localStorage.clear(); 
+  set('baseItems',[]); 
+  set('tools',[]); 
+  set('locations',[]); 
+  set('recipes',[]); 
+  calcCart.length=0; 
+  existingItems.length=0; 
+  document.getElementById('calcResultArea').innerHTML=''; 
+  lastCalcResult=null; 
+  renderBaseItems(); 
+  renderTools(); 
+  renderLocations(); 
+  renderRecipes(); 
+  updateCalcSelects(); 
+  showToast('Alles gelöscht','info'); 
+}
 
 /* ---------- init & bindings ---------- */
 document.getElementById('baseItemForm').addEventListener('submit', saveBaseItem);
@@ -944,7 +1435,15 @@ document.getElementById('recipeForm').addEventListener('submit', saveRecipe);
 addIngredientBtn.addEventListener('click', ()=>addIngredientRow());
 
 document.getElementById('calcRunBtn').addEventListener('click', ()=>{ runCalculator(); });
-document.getElementById('calcClearBtn').addEventListener('click', ()=>{ calcCart.length=0; existingItems.length=0; renderCalcCart(); renderExistingList(); document.getElementById('calcResultArea').innerHTML=''; lastCalcResult=null; updateCalcSelects(); });
+document.getElementById('calcClearBtn').addEventListener('click', ()=>{ 
+  calcCart.length=0; 
+  existingItems.length=0; 
+  renderCalcCart(); 
+  renderExistingList(); 
+  document.getElementById('calcResultArea').innerHTML=''; 
+  lastCalcResult=null; 
+  updateCalcSelects(); 
+});
 document.getElementById('calcAddBtn').addEventListener('click', (e)=>{ e.preventDefault(); calcAddToList(); });
 document.getElementById('existingAddBtn').addEventListener('click', (e)=>{ e.preventDefault(); addExistingItem(); });
 
@@ -967,7 +1466,13 @@ window.addEventListener('load', () => {
 });
 
 /* initial render */
-renderBaseItems(); renderTools(); renderLocations(); renderRecipes(); updateRecipeToolSelect(); updateRecipeLocationSelect(); updateCalcSelects();
+renderBaseItems(); 
+renderTools(); 
+renderLocations(); 
+renderRecipes(); 
+updateRecipeToolSelect(); 
+updateRecipeLocationSelect(); 
+updateCalcSelects();
 
 </script>
 </body>
