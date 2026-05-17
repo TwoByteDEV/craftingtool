@@ -421,16 +421,22 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Betrag ($)</label>
+            <label class="form-label">Datum & Uhrzeit</label>
+            <input id="transDate" type="datetime-local" class="form-control" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Betrag (€)</label>
             <div class="input-group">
-              <span class="input-group-text">$</span>
+              <span class="input-group-text">€</span>
               <input id="transAmount" type="number" step="0.01" class="form-control" required>
             </div>
           </div>
 
           <div class="mb-3">
             <label class="form-label">Beschreibung</label>
-            <input id="transDescription" class="form-control" placeholder="z.B. Verkauf von 10x Eisenbarren" required>
+            <textarea id="transDescription" class="form-control" rows="3" 
+                      placeholder="z.B. Verkauf von 10x Eisenbarren" required></textarea>
           </div>
         </div>
         <div class="modal-footer py-1">
@@ -1450,17 +1456,21 @@ function saveTransactions(trans) {
 function openTransactionModal(index = null) {
   document.getElementById('transIndex').value = index !== null ? index : '';
   
+  const now = new Date().toISOString().slice(0, 16); // für datetime-local
+  
   if (index !== null) {
     const trans = getTransactions()[index];
     document.getElementById('transType').value = trans.type;
     document.getElementById('transCategory').value = trans.category;
-    document.getElementById('transAmount').value = trans.amount;
+    document.getElementById('transAmount').value = Math.abs(trans.amount);
     document.getElementById('transDescription').value = trans.description;
+    document.getElementById('transDate').value = trans.date.slice(0, 16);
   } else {
     document.getElementById('transType').value = 'income';
     document.getElementById('transCategory').value = 'private';
     document.getElementById('transAmount').value = '';
     document.getElementById('transDescription').value = '';
+    document.getElementById('transDate').value = now;
   }
   
   accountingModal.show();
@@ -1471,29 +1481,31 @@ function saveTransaction(e) {
   const index = document.getElementById('transIndex').value;
   const type = document.getElementById('transType').value;
   const category = document.getElementById('transCategory').value;
-  const amount = parseFloat(document.getElementById('transAmount').value);
+  const amountStr = document.getElementById('transAmount').value;
   const description = document.getElementById('transDescription').value.trim();
+  const dateStr = document.getElementById('transDate').value;
 
-  if (!description || isNaN(amount)) {
-    showToast('Betrag und Beschreibung sind erforderlich', 'error');
+  if (!description || !amountStr || !dateStr) {
+    showToast('Alle Felder müssen ausgefüllt werden', 'error');
     return;
   }
 
+  const amount = parseFloat(amountStr);
   let transactions = getTransactions();
 
   const entry = {
     id: index ? transactions[index].id : uuid(),
-    date: new Date().toISOString(),
+    date: dateStr + ":00",           // ISO-Format für spätere Verwendung
     type,
     category,
     amount: type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
     description
   };
 
-  if (index) {
+  if (index !== '') {
     transactions[index] = entry;
   } else {
-    transactions.unshift(entry); // Neueste zuerst
+    transactions.unshift(entry); // Neueste oben
   }
 
   saveTransactions(transactions);
@@ -1510,6 +1522,10 @@ function deleteTransaction(index) {
   saveTransactions(transactions);
   renderTransactions();
   renderAccountingSummary();
+}
+
+function editTransaction(i) {
+  openTransactionModal(i);
 }
 
 function renderAccountingSummary() {
@@ -1532,37 +1548,29 @@ function renderAccountingSummary() {
 
   const html = `
     <div class="col-md-6">
-      <div class="card">
+      <div class="card h-100">
         <div class="card-body">
           <h5>Privat</h5>
-          <div class="d-flex justify-content-between">
-            <span>Einnahmen:</span><strong class="text-success">${privateIncome.toFixed(2)} $</strong>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>Ausgaben:</span><strong class="text-danger">${privateExpense.toFixed(2)} $</strong>
-          </div>
+          <div class="d-flex justify-content-between mb-1"><span>Einnahmen:</span><strong class="text-success">${privateIncome.toFixed(2)} €</strong></div>
+          <div class="d-flex justify-content-between mb-1"><span>Ausgaben:</span><strong class="text-danger">${privateExpense.toFixed(2)} €</strong></div>
           <hr>
           <div class="d-flex justify-content-between fs-5">
             <strong>Gewinn/Verlust:</strong>
-            <strong class="${privateProfit >= 0 ? 'text-success' : 'text-danger'}">${privateProfit.toFixed(2)} $</strong>
+            <strong class="${privateProfit >= 0 ? 'text-success' : 'text-danger'}">${privateProfit.toFixed(2)} €</strong>
           </div>
         </div>
       </div>
     </div>
     <div class="col-md-6">
-      <div class="card">
+      <div class="card h-100">
         <div class="card-body">
           <h5>Gewerbe</h5>
-          <div class="d-flex justify-content-between">
-            <span>Einnahmen:</span><strong class="text-success">${businessIncome.toFixed(2)} $</strong>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>Ausgaben:</span><strong class="text-danger">${businessExpense.toFixed(2)} $</strong>
-          </div>
+          <div class="d-flex justify-content-between mb-1"><span>Einnahmen:</span><strong class="text-success">${businessIncome.toFixed(2)} €</strong></div>
+          <div class="d-flex justify-content-between mb-1"><span>Ausgaben:</span><strong class="text-danger">${businessExpense.toFixed(2)} €</strong></div>
           <hr>
           <div class="d-flex justify-content-between fs-5">
             <strong>Gewinn/Verlust:</strong>
-            <strong class="${businessProfit >= 0 ? 'text-success' : 'text-danger'}">${businessProfit.toFixed(2)} $</strong>
+            <strong class="${businessProfit >= 0 ? 'text-success' : 'text-danger'}">${businessProfit.toFixed(2)} €</strong>
           </div>
         </div>
       </div>
@@ -1571,21 +1579,30 @@ function renderAccountingSummary() {
   document.getElementById('accountingSummary').innerHTML = html;
 }
 
-function renderTransactions(filter = '') {
+function renderTransactions() {
   const tbody = document.getElementById('transactionTable');
   tbody.innerHTML = '';
   const transactions = getTransactions();
 
   transactions.forEach((t, i) => {
-    if (filter && !t.description.toLowerCase().includes(filter.toLowerCase())) return;
+    const date = new Date(t.date);
+    const dateStr = date.toLocaleDateString('de-DE', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const timeStr = date.toLocaleTimeString('de-DE', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
 
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${new Date(t.date).toLocaleDateString('de-DE')}</td>
+      <td>${dateStr}<br><small class="text-muted">${timeStr}</small></td>
       <td><span class="badge ${t.type === 'income' ? 'bg-success' : 'bg-danger'}">${t.type === 'income' ? 'Einnahme' : 'Ausgabe'}</span></td>
       <td><span class="badge ${t.category === 'business' ? 'bg-info' : 'bg-secondary'}">${t.category === 'business' ? 'Gewerbe' : 'Privat'}</span></td>
       <td>${escapeHtml(t.description)}</td>
-      <td class="text-end fw-bold ${t.amount >= 0 ? 'text-success' : 'text-danger'}">${t.amount.toFixed(2)} $</td>
+      <td class="text-end fw-bold ${t.amount >= 0 ? 'text-success' : 'text-danger'}">${t.amount.toFixed(2)} €</td>
       <td class="text-end">
         <button class="btn btn-sm btn-warning me-1" onclick="editTransaction(${i})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-danger" onclick="deleteTransaction(${i})"><i class="bi bi-trash"></i></button>
@@ -1593,10 +1610,6 @@ function renderTransactions(filter = '') {
     `;
     tbody.appendChild(row);
   });
-}
-
-function editTransaction(i) {
-  openTransactionModal(i);
 }
 
 /* import/export */
