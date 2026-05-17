@@ -421,9 +421,9 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Betrag (€)</label>
+            <label class="form-label">Betrag ($)</label>
             <div class="input-group">
-              <span class="input-group-text">€</span>
+              <span class="input-group-text">$</span>
               <input id="transAmount" type="number" step="0.01" class="form-control" required>
             </div>
           </div>
@@ -1536,15 +1536,15 @@ function renderAccountingSummary() {
         <div class="card-body">
           <h5>Privat</h5>
           <div class="d-flex justify-content-between">
-            <span>Einnahmen:</span><strong class="text-success">${privateIncome.toFixed(2)} €</strong>
+            <span>Einnahmen:</span><strong class="text-success">${privateIncome.toFixed(2)} $</strong>
           </div>
           <div class="d-flex justify-content-between">
-            <span>Ausgaben:</span><strong class="text-danger">${privateExpense.toFixed(2)} €</strong>
+            <span>Ausgaben:</span><strong class="text-danger">${privateExpense.toFixed(2)} $</strong>
           </div>
           <hr>
           <div class="d-flex justify-content-between fs-5">
             <strong>Gewinn/Verlust:</strong>
-            <strong class="${privateProfit >= 0 ? 'text-success' : 'text-danger'}">${privateProfit.toFixed(2)} €</strong>
+            <strong class="${privateProfit >= 0 ? 'text-success' : 'text-danger'}">${privateProfit.toFixed(2)} $</strong>
           </div>
         </div>
       </div>
@@ -1554,15 +1554,15 @@ function renderAccountingSummary() {
         <div class="card-body">
           <h5>Gewerbe</h5>
           <div class="d-flex justify-content-between">
-            <span>Einnahmen:</span><strong class="text-success">${businessIncome.toFixed(2)} €</strong>
+            <span>Einnahmen:</span><strong class="text-success">${businessIncome.toFixed(2)} $</strong>
           </div>
           <div class="d-flex justify-content-between">
-            <span>Ausgaben:</span><strong class="text-danger">${businessExpense.toFixed(2)} €</strong>
+            <span>Ausgaben:</span><strong class="text-danger">${businessExpense.toFixed(2)} $</strong>
           </div>
           <hr>
           <div class="d-flex justify-content-between fs-5">
             <strong>Gewinn/Verlust:</strong>
-            <strong class="${businessProfit >= 0 ? 'text-success' : 'text-danger'}">${businessProfit.toFixed(2)} €</strong>
+            <strong class="${businessProfit >= 0 ? 'text-success' : 'text-danger'}">${businessProfit.toFixed(2)} $</strong>
           </div>
         </div>
       </div>
@@ -1585,7 +1585,7 @@ function renderTransactions(filter = '') {
       <td><span class="badge ${t.type === 'income' ? 'bg-success' : 'bg-danger'}">${t.type === 'income' ? 'Einnahme' : 'Ausgabe'}</span></td>
       <td><span class="badge ${t.category === 'business' ? 'bg-info' : 'bg-secondary'}">${t.category === 'business' ? 'Gewerbe' : 'Privat'}</span></td>
       <td>${escapeHtml(t.description)}</td>
-      <td class="text-end fw-bold ${t.amount >= 0 ? 'text-success' : 'text-danger'}">${t.amount.toFixed(2)} €</td>
+      <td class="text-end fw-bold ${t.amount >= 0 ? 'text-success' : 'text-danger'}">${t.amount.toFixed(2)} $</td>
       <td class="text-end">
         <button class="btn btn-sm btn-warning me-1" onclick="editTransaction(${i})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-danger" onclick="deleteTransaction(${i})"><i class="bi bi-trash"></i></button>
