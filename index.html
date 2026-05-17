@@ -7,10 +7,8 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
-/* container width */
 .container { max-width:80vw; }
 
-/* theme */
 :root{
   --bg: #f8f9fa;
   --card-bg: #fff;
@@ -28,7 +26,6 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 .card .card-header { background:transparent; border-bottom:1px solid var(--border); }
 .table-compact td, .table-compact th { padding:.35rem .5rem; vertical-align:middle; font-size:.92rem; border-color:var(--border); }
 
-/* zebra */
 .table-zebra tr[data-data="1"].zebra-odd { background-color: var(--table-odd) !important; }
 .table-zebra tr[data-data="1"].zebra-even { background-color: var(--card-bg) !important; }
 
@@ -37,13 +34,13 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 
 .compact-input { font-size:0.85rem; padding:0.25rem 0.5rem; max-width:160px; }
 .hidden { display:none; }
+.price-input { width: 110px; }
 
 .calc-panel{ border:1px dashed var(--border); padding:12px; border-radius:8px; background:var(--card-bg); }
 .calc-grid { display:grid; grid-template-columns: 1fr; gap:10px; }
 .calc-section { border:1px solid var(--border); padding:10px; border-radius:8px; background:#fff; }
 .calc-section .section-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
 
-/* unified qty layout: label above input, button next to input, both aligned */
 .qty-row { display:flex; gap:8px; align-items:flex-end; }
 .qty-row .qty-col { display:flex; flex-direction:column; }
 .qty-row .qty-col label { font-size:.8rem; color:var(--muted); margin-bottom:4px; }
@@ -51,20 +48,15 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 
 .add-btn { width:44px; height:36px; display:inline-flex; align-items:center; justify-content:center; padding:0; }
 
-/* calc list headers: qty first then name */
 .calc-list-header { display:flex; gap:8px; font-weight:600; font-size:.9rem; padding:6px 2px; border-bottom:1px dashed var(--border); margin-bottom:6px; align-items:center; }
 .calc-list-header .col-qty { width: var(--qty-width); text-align:left; }
 .calc-list-header .col-name { flex:1; padding-left:6px; }
 
-/* calc items: qty - name - delete */
 .calc-item { display:flex; align-items:center; gap:10px; margin-bottom:8px; width:100%; }
 .calc-item .col-qty { width: var(--qty-width); display:flex; align-items:center; }
 .calc-item .col-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:6px; }
 .calc-item .col-action { width:44px; text-align:right; }
 
-.calc-actions { display:flex; gap:8px; align-items:center; }
-
-/* steps */
 .step { border-left:4px solid var(--accent); padding:10px 14px; margin-bottom:10px; border-radius:6px; background:linear-gradient(90deg, rgba(13,110,253,0.03), transparent); }
 .step .meta { font-size:.92rem; color:var(--muted); margin-bottom:6px; }
 .step .meta .badge { font-weight:600; background:transparent; border:1px dashed var(--border); color:var(--muted); margin-left:6px; padding:.2rem .4rem; border-radius:6px; }
@@ -75,8 +67,6 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 .tree .node { display:inline-block; padding:6px 10px; border-radius:8px; background:#fff; border:1px solid var(--border); box-shadow:0 1px 1px rgba(0,0,0,0.02); }
 
 #toastContainer { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:1080; }
-
-.price-input { width: 110px; }
 
 @media (max-width: 1100px) { .container{ max-width:96vw; } }
 @media (max-width: 768px) {
@@ -106,6 +96,7 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
     <li class="nav-item" role="presentation"><button id="tabCalcBtn" class="nav-link active" data-bs-toggle="tab" data-bs-target="#calc" type="button">Kalkulator</button></li>
     <li class="nav-item" role="presentation"><button id="tabRecipesBtn" class="nav-link" data-bs-toggle="tab" data-bs-target="#recipes" type="button">Rezepte</button></li>
     <li class="nav-item" role="presentation"><button id="tabDataBtn" class="nav-link" data-bs-toggle="tab" data-bs-target="#data" type="button">Basis-Daten</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#accounting">Buchhaltung</button></li>
   </ul>
 
   <div class="tab-content mt-3">
@@ -283,6 +274,34 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
       </div>
     </div>
 
+    <div class="tab-pane fade" id="accounting">
+      <div class="card">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <strong>Buchhaltung</strong>
+          <button class="btn btn-sm btn-primary" onclick="openTransactionModal()"><i class="bi bi-plus"></i> Neuer Eintrag</button>
+        </div>
+        <div class="card-body p-3">
+          <!-- Summaries -->
+          <div class="row g-3 mb-4" id="accountingSummary"></div>
+
+          <div class="table-responsive">
+            <table class="table table-sm table-compact table-zebra">
+              <thead>
+                <tr>
+                  <th>Datum</th>
+                  <th>Typ</th>
+                  <th>Kategorie</th>
+                  <th>Beschreibung</th>
+                  <th class="text-end">Betrag</th>
+                  <th class="text-end">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="transactionTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -372,6 +391,57 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
   </form>
 </div></div></div>
 
+<!-- Transaction Modal -->
+<div class="modal fade" id="transactionModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="transactionForm">
+        <div class="modal-header py-1">
+          <strong>Neuer Buchhaltungs-Eintrag</strong>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="transIndex">
+
+          <div class="row mb-3">
+            <div class="col-6">
+              <label class="form-label">Typ</label>
+              <select id="transType" class="form-select">
+                <option value="income">Einnahme (+)</option>
+                <option value="expense">Ausgabe (-)</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Kategorie</label>
+              <select id="transCategory" class="form-select">
+                <option value="private">Privat</option>
+                <option value="business">Gewerbe</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Betrag (€)</label>
+            <div class="input-group">
+              <span class="input-group-text">€</span>
+              <input id="transAmount" type="number" step="0.01" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Beschreibung</label>
+            <input id="transDescription" class="form-control" placeholder="z.B. Verkauf von 10x Eisenbarren" required>
+          </div>
+        </div>
+        <div class="modal-footer py-1">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-success">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Toast container -->
 <div id="toastContainer" aria-live="polite" aria-atomic="true"></div>
 
@@ -410,6 +480,7 @@ const baseItemModal = new bootstrap.Modal(document.getElementById('baseItemModal
 const toolModal = new bootstrap.Modal(document.getElementById('toolModal'));
 const locationModal = new bootstrap.Modal(document.getElementById('locationModal'));
 const recipeModal = new bootstrap.Modal(document.getElementById('recipeModal'));
+const accountingModal = new bootstrap.Modal(document.getElementById('transactionModal'));
 
 /* toggle helpers */
 function toggleFilter(id){ const el=document.getElementById(id); if(!el) return; el.classList.toggle('hidden'); if(!el.classList.contains('hidden')) el.focus(); }
@@ -1366,13 +1437,176 @@ document.getElementById('copyCalcBtn').addEventListener('click', ()=>{
   navigator.clipboard.writeText(md).then(()=> showToast('Kalkulation in die Zwischenablage kopiert.','success'));
 });
 
+
+/* transactions */
+function getTransactions() {
+  return JSON.parse(localStorage.getItem('transactions') || '[]');
+}
+
+function saveTransactions(trans) {
+  localStorage.setItem('transactions', JSON.stringify(trans));
+}
+
+function openTransactionModal(index = null) {
+  document.getElementById('transIndex').value = index !== null ? index : '';
+  
+  if (index !== null) {
+    const trans = getTransactions()[index];
+    document.getElementById('transType').value = trans.type;
+    document.getElementById('transCategory').value = trans.category;
+    document.getElementById('transAmount').value = trans.amount;
+    document.getElementById('transDescription').value = trans.description;
+  } else {
+    document.getElementById('transType').value = 'income';
+    document.getElementById('transCategory').value = 'private';
+    document.getElementById('transAmount').value = '';
+    document.getElementById('transDescription').value = '';
+  }
+  
+  accountingModal.show();
+}
+
+function saveTransaction(e) {
+  e.preventDefault();
+  const index = document.getElementById('transIndex').value;
+  const type = document.getElementById('transType').value;
+  const category = document.getElementById('transCategory').value;
+  const amount = parseFloat(document.getElementById('transAmount').value);
+  const description = document.getElementById('transDescription').value.trim();
+
+  if (!description || isNaN(amount)) {
+    showToast('Betrag und Beschreibung sind erforderlich', 'error');
+    return;
+  }
+
+  let transactions = getTransactions();
+
+  const entry = {
+    id: index ? transactions[index].id : uuid(),
+    date: new Date().toISOString(),
+    type,
+    category,
+    amount: type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
+    description
+  };
+
+  if (index) {
+    transactions[index] = entry;
+  } else {
+    transactions.unshift(entry); // Neueste zuerst
+  }
+
+  saveTransactions(transactions);
+  accountingModal.hide();
+  showToast('Eintrag gespeichert', 'success');
+  renderTransactions();
+  renderAccountingSummary();
+}
+
+function deleteTransaction(index) {
+  if (!confirm('Eintrag wirklich löschen?')) return;
+  let transactions = getTransactions();
+  transactions.splice(index, 1);
+  saveTransactions(transactions);
+  renderTransactions();
+  renderAccountingSummary();
+}
+
+function renderAccountingSummary() {
+  const trans = getTransactions();
+  let privateIncome = 0, privateExpense = 0;
+  let businessIncome = 0, businessExpense = 0;
+
+  trans.forEach(t => {
+    if (t.category === 'private') {
+      if (t.amount > 0) privateIncome += t.amount;
+      else privateExpense += Math.abs(t.amount);
+    } else {
+      if (t.amount > 0) businessIncome += t.amount;
+      else businessExpense += Math.abs(t.amount);
+    }
+  });
+
+  const privateProfit = privateIncome - privateExpense;
+  const businessProfit = businessIncome - businessExpense;
+
+  const html = `
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5>Privat</h5>
+          <div class="d-flex justify-content-between">
+            <span>Einnahmen:</span><strong class="text-success">${privateIncome.toFixed(2)} €</strong>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>Ausgaben:</span><strong class="text-danger">${privateExpense.toFixed(2)} €</strong>
+          </div>
+          <hr>
+          <div class="d-flex justify-content-between fs-5">
+            <strong>Gewinn/Verlust:</strong>
+            <strong class="${privateProfit >= 0 ? 'text-success' : 'text-danger'}">${privateProfit.toFixed(2)} €</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5>Gewerbe</h5>
+          <div class="d-flex justify-content-between">
+            <span>Einnahmen:</span><strong class="text-success">${businessIncome.toFixed(2)} €</strong>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>Ausgaben:</span><strong class="text-danger">${businessExpense.toFixed(2)} €</strong>
+          </div>
+          <hr>
+          <div class="d-flex justify-content-between fs-5">
+            <strong>Gewinn/Verlust:</strong>
+            <strong class="${businessProfit >= 0 ? 'text-success' : 'text-danger'}">${businessProfit.toFixed(2)} €</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('accountingSummary').innerHTML = html;
+}
+
+function renderTransactions(filter = '') {
+  const tbody = document.getElementById('transactionTable');
+  tbody.innerHTML = '';
+  const transactions = getTransactions();
+
+  transactions.forEach((t, i) => {
+    if (filter && !t.description.toLowerCase().includes(filter.toLowerCase())) return;
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${new Date(t.date).toLocaleDateString('de-DE')}</td>
+      <td><span class="badge ${t.type === 'income' ? 'bg-success' : 'bg-danger'}">${t.type === 'income' ? 'Einnahme' : 'Ausgabe'}</span></td>
+      <td><span class="badge ${t.category === 'business' ? 'bg-info' : 'bg-secondary'}">${t.category === 'business' ? 'Gewerbe' : 'Privat'}</span></td>
+      <td>${escapeHtml(t.description)}</td>
+      <td class="text-end fw-bold ${t.amount >= 0 ? 'text-success' : 'text-danger'}">${t.amount.toFixed(2)} €</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-warning me-1" onclick="editTransaction(${i})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteTransaction(${i})"><i class="bi bi-trash"></i></button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function editTransaction(i) {
+  openTransactionModal(i);
+}
+
 /* import/export */
 document.getElementById('exportAllBtn').addEventListener('click', ()=>{
   const all = { 
     baseItems:get('baseItems'), 
     tools:get('tools'), 
     locations:get('locations'), 
-    recipes:get('recipes') 
+    recipes:get('recipes'),
+    transactions: getTransactions()
   };
   const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob); 
@@ -1395,12 +1629,16 @@ document.getElementById('importFile').addEventListener('change', (ev)=>{
       if(data.tools) set('tools', data.tools);
       if(data.locations) set('locations', data.locations);
       if(data.recipes) set('recipes', data.recipes);
-      showToast('Importiert','success');
+      if (data.transactions) saveTransactions(data.transactions);
+
+      showToast('Import erfolgreich','success');
       renderBaseItems(); 
       renderTools(); 
       renderLocations(); 
       renderRecipes(); 
       updateCalcSelects();
+      renderTransactions();
+      renderAccountingSummary();
     }catch(err){ 
       showToast('Fehler beim Import: '+err.message,'error'); 
     }
@@ -1432,6 +1670,8 @@ document.getElementById('baseItemForm').addEventListener('submit', saveBaseItem)
 document.getElementById('toolForm').addEventListener('submit', saveTool);
 document.getElementById('locationForm').addEventListener('submit', saveLocation);
 document.getElementById('recipeForm').addEventListener('submit', saveRecipe);
+document.getElementById('transactionForm').addEventListener('submit', saveTransaction);
+if (!localStorage.getItem('transactions')) saveTransactions([]);
 addIngredientBtn.addEventListener('click', ()=>addIngredientRow());
 
 document.getElementById('calcRunBtn').addEventListener('click', ()=>{ runCalculator(); });
@@ -1473,6 +1713,8 @@ renderRecipes();
 updateRecipeToolSelect(); 
 updateRecipeLocationSelect(); 
 updateCalcSelects();
+renderTransactions();
+renderAccountingSummary();
 
 </script>
 </body>
