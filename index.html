@@ -562,10 +562,10 @@ function createSearchableSelect(wrapperId, inputId, dropdownId, getOptionsFn, on
     filtered.forEach(opt => {
       const div = document.createElement('div');
       div.className = 'dropdown-item';
-      div.textContent = opt.name;
+      div.innerHTML = opt.display || opt.name;
       div.dataset.value = opt.id;
       div.onclick = () => {
-        input.value = opt.name;
+        input.value = opt.name;           // Nur der reine Name im Input
         selectedValue = opt.id;
         dropdown.classList.remove('show');
         if (onSelectFn) onSelectFn(opt.id, opt.name);
@@ -585,14 +585,10 @@ function createSearchableSelect(wrapperId, inputId, dropdownId, getOptionsFn, on
     dropdown.classList.add('show');
   });
 
-  // Klick außerhalb schließen
   document.addEventListener('click', (e) => {
-    if (!wrapper.contains(e.target)) {
-      dropdown.classList.remove('show');
-    }
+    if (!wrapper.contains(e.target)) dropdown.classList.remove('show');
   });
 
-  // Enter-Taste auswählen
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && dropdown.classList.contains('show')) {
       const first = dropdown.querySelector('.dropdown-item');
@@ -617,35 +613,33 @@ let recipeSelectCtrl, existingItemCtrl, locationSelectCtrl, toolSelectCtrl;
 
 // Initialisierung der suchbaren Felder
 function initSearchableSelects() {
-  // Kalkulator - Rezepte
+  // Kalkulator - Rezepte (nur Rezepte)
   recipeSelectCtrl = createSearchableSelect(
     'calcRecipeWrapper', 'calcRecipeSearch', 'calcRecipeDropdown',
     () => {
       const inCart = new Set(calcCart.map(c => c.id));
-      return (get('recipes')||[]).filter(r => !inCart.has(r.id)).map(r => ({id: r.id, name: r.name}));
-    },
-    (id) => { /* wird beim Hinzufügen verwendet */ }
+      return (get('recipes')||[])
+        .filter(r => !inCart.has(r.id))
+        .map(r => ({id: r.id, name: r.name, display: r.name}));
+    }
   );
 
-  // Kalkulator - Vorhandene Items
+  // Kalkulator - Vorhandene Items (mit Typ)
   existingItemCtrl = createSearchableSelect(
     'existingItemWrapper', 'existingItemSearch', 'existingItemDropdown',
-    () => allItemsCombined(),
-    () => {}
+    () => allItemsCombined()
   );
 
   // Rezept Modal - Ort
   locationSelectCtrl = createSearchableSelect(
     'recipeLocationWrapper', 'recipeLocationSearch', 'recipeLocationDropdown',
-    () => (get('locations')||[]).map(l => ({id: l.id, name: l.name})),
-    () => {}
+    () => (get('locations')||[]).map(l => ({id: l.id, name: l.name, display: l.name}))
   );
 
   // Rezept Modal - Werkzeug
   toolSelectCtrl = createSearchableSelect(
     'recipeToolsWrapper', 'recipeToolsSearch', 'recipeToolsDropdown',
-    () => (get('tools')||[]).map(t => ({id: t.id, name: t.name})),
-    () => {}
+    () => (get('tools')||[]).map(t => ({id: t.id, name: t.name, display: t.name}))
   );
 }
 
@@ -736,7 +730,23 @@ function toggleCard(id, btnEl){
 /* ---------- all-items helpers ---------- */
 function allBaseItems(){ return (get('baseItems')||[]).map(b=>({id:b.id,name:b.name})); }
 function allRecipesRef(){ return (get('recipes')||[]).map(r=>({id:r.id,name:r.name})); }
-function allItemsCombined(){ return [...allBaseItems(), ...allRecipesRef()]; }
+function allItemsCombined(){
+  const bases = (get('baseItems')||[]).map(b => ({
+    id: b.id,
+    name: b.name,
+    type: 'basis',
+    display: `${b.name} <small class="text-muted">(Basis)</small>`
+  }));
+
+  const recs = (get('recipes')||[]).map(r => ({
+    id: r.id,
+    name: r.name,
+    type: 'rezept',
+    display: `${r.name} <small class="text-muted">(Rezept)</small>`
+  }));
+
+  return [...bases, ...recs];
+}
 
 /* ---------- Base CRUD ---------- */
 function renderBaseItems(filter=''){
@@ -952,12 +962,12 @@ function addIngredientRow(data = {}) {
   const div = document.createElement('div');
   div.className = 'd-flex mb-2 align-items-center ingredient-row';
 
-  // Suchbares Feld für Zutat
+  // Suchbares Feld
   const selectWrapper = document.createElement('div');
   selectWrapper.className = 'searchable-select flex-grow-1 me-2';
   selectWrapper.innerHTML = `
     <input type="text" class="ingredient-search form-control form-control-sm" placeholder="Zutat suchen..." autocomplete="off">
-    <div class="dropdown-menu ingredient-dropdown" style="max-height:250px; overflow-y:auto;"></div>
+    <div class="dropdown-menu ingredient-dropdown" style="max-height:280px; overflow-y:auto; width:100%;"></div>
   `;
 
   const searchInput = selectWrapper.querySelector('.ingredient-search');
@@ -971,28 +981,32 @@ function addIngredientRow(data = {}) {
   qtyInput.className = 'form-control form-control-sm me-2 qty-input';
   qtyInput.style.width = '90px';
 
-  // Löschen-Button
+  // Löschen Button
   const delBtn = document.createElement('button');
   delBtn.type = 'button';
   delBtn.className = 'btn btn-sm btn-danger';
   delBtn.innerHTML = '<i class="bi bi-trash"></i>';
-  delBtn.onclick = () => { div.remove(); updateIngredientBtn(); };
+  delBtn.onclick = () => {
+    div.remove();
+    updateIngredientBtn();
+  };
 
   div.appendChild(selectWrapper);
   div.appendChild(qtyInput);
   div.appendChild(delBtn);
   ingredientList.appendChild(div);
 
-  // --- Suchlogik ---
+  // --- Suchlogik mit Typ-Anzeige ---
   let selectedId = data.id || '';
 
   function renderIngredientDropdown(filter = '') {
     dropdown.innerHTML = '';
+
     const used = [...ingredientList.querySelectorAll('.ingredient-search')]
                   .map(inp => inp.dataset.value)
                   .filter(Boolean);
 
-    const available = allItemsCombined().filter(it => 
+    let available = allItemsCombined().filter(it => 
       !used.includes(it.id) || it.id === selectedId
     );
 
@@ -1008,9 +1022,11 @@ function addIngredientRow(data = {}) {
     filtered.forEach(item => {
       const el = document.createElement('div');
       el.className = 'dropdown-item';
-      el.textContent = item.name;
+      el.innerHTML = item.display || item.name;   // Zeigt (Basis) oder (Rezept)
+      el.dataset.value = item.id;
+      
       el.onclick = () => {
-        searchInput.value = item.name;
+        searchInput.value = item.name;           // Nur reiner Name im Feld
         searchInput.dataset.value = item.id;
         selectedId = item.id;
         dropdown.classList.remove('show');
@@ -1032,13 +1048,21 @@ function addIngredientRow(data = {}) {
   });
 
   // Klick außerhalb schließen
-  document.addEventListener('click', function closeDropdown(e) {
+  document.addEventListener('click', (e) => {
     if (!selectWrapper.contains(e.target)) {
       dropdown.classList.remove('show');
     }
   });
 
-  // Vorbelegung beim Editieren
+  // Tastatur-Support (Enter)
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && dropdown.classList.contains('show')) {
+      const first = dropdown.querySelector('.dropdown-item');
+      if (first) first.click();
+    }
+  });
+
+  // Vorbelegung beim Bearbeiten
   if (data.id) {
     const item = allItemsCombined().find(i => i.id === data.id);
     if (item) {
