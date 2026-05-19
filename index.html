@@ -66,6 +66,42 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 .tree li { margin:8px 0; padding-left:8px; position:relative; }
 .tree .node { display:inline-block; padding:6px 10px; border-radius:8px; background:#fff; border:1px solid var(--border); box-shadow:0 1px 1px rgba(0,0,0,0.02); }
 
+.searchable-select {
+  position: relative;
+}
+.searchable-select input {
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.searchable-select .dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1050;
+  display: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.searchable-select .dropdown-menu.show {
+  display: block;
+}
+.searchable-select .dropdown-item {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.searchable-select .dropdown-item:hover,
+.searchable-select .dropdown-item.active {
+  background-color: #0d6efd;
+  color: white;
+}
+
 #toastContainer { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:1080; }
 
 @media (max-width: 1100px) { .container{ max-width:96vw; } }
@@ -99,11 +135,10 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
     <li class="nav-item" role="presentation"><button id="tabAccountingBtn" class="nav-link" data-bs-toggle="tab" data-bs-target="#accounting" type="button">Buchhaltung</button></li>
   </ul>
 
-  <div class="tab-content mt-3">
+<div class="tab-content mt-3">
     <!-- Kalkulator -->
     <div class="tab-pane fade show active" id="calc">
       <div class="row">
-        <!-- left: controls -->
         <div class="col-lg-5 mb-3">
           <div class="card">
             <div class="card-header py-1 d-flex justify-content-between align-items-center">
@@ -116,12 +151,14 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
                   <div class="calc-section">
                     <div class="section-title">
                       <div><strong>Ausgewählte Rezepte</strong></div>
-                      <div class="small text-muted">Anzahl editierbar</div>
                     </div>
                     <div class="d-flex gap-2 mb-2">
                       <div style="flex:1">
                         <label class="form-label small mb-1">Rezept</label>
-                        <select id="calcRecipeSelect" class="form-select form-select-sm"></select>
+                        <div class="searchable-select" id="calcRecipeWrapper">
+                          <input type="text" id="calcRecipeSearch" class="form-control form-control-sm" placeholder="Rezept suchen..." autocomplete="off">
+                          <div class="dropdown-menu" id="calcRecipeDropdown"></div>
+                        </div>
                       </div>
                       <div style="width:110px">
                         <label class="form-label small mb-1">Anzahl</label>
@@ -137,15 +174,19 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
                     </div>
                     <div id="calcCart" class="mb-1"></div>
                   </div>
+
+                  <!-- Vorhandene Items -->
                   <div class="calc-section">
                     <div class="section-title">
                       <div><strong>Vorhandene Items</strong></div>
-                      <div class="small text-muted">Zieht vom Bedarf ab</div>
                     </div>
                     <div class="d-flex gap-2 mb-2">
                       <div style="flex:1">
                         <label class="form-label small mb-1">Item</label>
-                        <select id="existingItemSelect" class="form-select form-select-sm"></select>
+                        <div class="searchable-select" id="existingItemWrapper">
+                          <input type="text" id="existingItemSearch" class="form-control form-control-sm" placeholder="Item suchen..." autocomplete="off">
+                          <div class="dropdown-menu" id="existingItemDropdown"></div>
+                        </div>
                       </div>
                       <div style="width:110px">
                         <label class="form-label small mb-1">Anzahl</label>
@@ -185,7 +226,6 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
           </div>
         </div>
 
-        <!-- right: results -->
         <div class="col-lg-7 mb-3">
           <div id="calcResultArea"></div>
         </div>
@@ -274,6 +314,7 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
       </div>
     </div>
 
+    <!-- Buchhaltung -->
     <div class="tab-pane fade" id="accounting">
       <div class="card">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
@@ -343,6 +384,7 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 </div>
 
 <!-- MODALS -->
+<!-- Basis-Items Modal -->
 <div class="modal fade" id="baseItemModal"><div class="modal-dialog"><div class="modal-content">
   <form id="baseItemForm">
     <div class="modal-header py-1"><strong>Basis-Item</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -359,6 +401,7 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
   </form>
 </div></div></div>
 
+<!-- Tool Modal -->
 <div class="modal fade" id="toolModal"><div class="modal-dialog"><div class="modal-content">
   <form id="toolForm">
     <div class="modal-header py-1"><strong>Werkzeug</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -370,6 +413,7 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
   </form>
 </div></div></div>
 
+<!-- Location Modal -->
 <div class="modal fade" id="locationModal"><div class="modal-dialog"><div class="modal-content">
   <form id="locationForm">
     <div class="modal-header py-1"><strong>Ort</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -382,42 +426,45 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
   </form>
 </div></div></div>
 
+<!-- Rezepte Modal -->
 <div class="modal fade" id="recipeModal"><div class="modal-dialog modal-lg"><div class="modal-content">
   <form id="recipeForm">
     <div class="modal-header py-1"><strong>Rezept</strong><button class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
       <input type="hidden" id="recipeIndex">
       <input id="recipeName" class="form-control mb-2" placeholder="Name" required>
+
       <div class="row mb-2">
         <div class="col"><input id="recipeDuration" class="form-control" placeholder="Herstelldauer (z.B. 8s, 5m, 2h)"></div>
-        <div class="col"><input id="recipeOutput" class="form-control" placeholder="Anzahl hergestellt (Output), z.B. 1" value="1"></div>
+        <div class="col"><input id="recipeOutput" class="form-control" placeholder="Output" value="1"></div>
       </div>
 
       <div class="row mb-3">
         <div class="col-md-6">
           <label class="form-label">Verkaufspreis (normal)</label>
-          <div class="input-group">
-            <span class="input-group-text">$</span>
-            <input id="recipeSellPrice" type="number" step="0.01" class="form-control" placeholder="optional">
-          </div>
+          <div class="input-group"><span class="input-group-text">$</span><input id="recipeSellPrice" type="number" step="0.01" class="form-control"></div>
         </div>
         <div class="col-md-6">
           <label class="form-label">Verkaufspreis Gewerbe</label>
-          <div class="input-group">
-            <span class="input-group-text">$</span>
-            <input id="recipeSellPriceTrade" type="number" step="0.01" class="form-control" placeholder="optional">
-          </div>
+          <div class="input-group"><span class="input-group-text">$</span><input id="recipeSellPriceTrade" type="number" step="0.01" class="form-control"></div>
         </div>
       </div>
 
+      <!-- Suchbare Felder -->
       <div class="mb-2">
         <label>Ort</label>
-        <select id="recipeLocation" class="form-select form-select-sm"></select>
+        <div class="searchable-select" id="recipeLocationWrapper">
+          <input type="text" id="recipeLocationSearch" class="form-control form-control-sm" placeholder="Ort suchen..." autocomplete="off">
+          <div class="dropdown-menu" id="recipeLocationDropdown"></div>
+        </div>
       </div>
 
       <div class="mb-2">
         <label>Werkzeug (optional)</label>
-        <select id="recipeTools" class="form-select form-select-sm"><option value="">(kein Werkzeug)</option></select>
+        <div class="searchable-select" id="recipeToolsWrapper">
+          <input type="text" id="recipeToolsSearch" class="form-control form-control-sm" placeholder="Werkzeug suchen..." autocomplete="off">
+          <div class="dropdown-menu" id="recipeToolsDropdown"></div>
+        </div>
       </div>
 
       <strong>Zutaten</strong>
@@ -490,6 +537,118 @@ body { background:var(--bg); color:var(--text); font-size:0.95rem; }
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+
+/* Searchable Dropdowns */
+
+function createSearchableSelect(wrapperId, inputId, dropdownId, getOptionsFn, onSelectFn) {
+  const wrapper = document.getElementById(wrapperId);
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(dropdownId);
+
+  let currentOptions = [];
+  let selectedValue = '';
+
+  function renderDropdown(filter = '') {
+    dropdown.innerHTML = '';
+    const filtered = currentOptions.filter(opt => 
+      opt.name.toLowerCase().includes(filter.toLowerCase())
+    );
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML = `<div class="dropdown-item text-muted">Keine Treffer</div>`;
+      return;
+    }
+
+    filtered.forEach(opt => {
+      const div = document.createElement('div');
+      div.className = 'dropdown-item';
+      div.textContent = opt.name;
+      div.dataset.value = opt.id;
+      div.onclick = () => {
+        input.value = opt.name;
+        selectedValue = opt.id;
+        dropdown.classList.remove('show');
+        if (onSelectFn) onSelectFn(opt.id, opt.name);
+      };
+      dropdown.appendChild(div);
+    });
+  }
+
+  input.addEventListener('focus', () => {
+    currentOptions = getOptionsFn();
+    renderDropdown(input.value);
+    dropdown.classList.add('show');
+  });
+
+  input.addEventListener('input', () => {
+    renderDropdown(input.value);
+    dropdown.classList.add('show');
+  });
+
+  // Klick außerhalb schließen
+  document.addEventListener('click', (e) => {
+    if (!wrapper.contains(e.target)) {
+      dropdown.classList.remove('show');
+    }
+  });
+
+  // Enter-Taste auswählen
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && dropdown.classList.contains('show')) {
+      const first = dropdown.querySelector('.dropdown-item');
+      if (first) first.click();
+    }
+  });
+
+  return {
+    getValue: () => selectedValue,
+    setValue: (id, name) => {
+      selectedValue = id;
+      input.value = name || '';
+    },
+    clear: () => {
+      selectedValue = '';
+      input.value = '';
+    }
+  };
+}
+
+let recipeSelectCtrl, existingItemCtrl, locationSelectCtrl, toolSelectCtrl;
+
+// Initialisierung der suchbaren Felder
+function initSearchableSelects() {
+  // Kalkulator - Rezepte
+  recipeSelectCtrl = createSearchableSelect(
+    'calcRecipeWrapper', 'calcRecipeSearch', 'calcRecipeDropdown',
+    () => {
+      const inCart = new Set(calcCart.map(c => c.id));
+      return (get('recipes')||[]).filter(r => !inCart.has(r.id)).map(r => ({id: r.id, name: r.name}));
+    },
+    (id) => { /* wird beim Hinzufügen verwendet */ }
+  );
+
+  // Kalkulator - Vorhandene Items
+  existingItemCtrl = createSearchableSelect(
+    'existingItemWrapper', 'existingItemSearch', 'existingItemDropdown',
+    () => allItemsCombined(),
+    () => {}
+  );
+
+  // Rezept Modal - Ort
+  locationSelectCtrl = createSearchableSelect(
+    'recipeLocationWrapper', 'recipeLocationSearch', 'recipeLocationDropdown',
+    () => (get('locations')||[]).map(l => ({id: l.id, name: l.name})),
+    () => {}
+  );
+
+  // Rezept Modal - Werkzeug
+  toolSelectCtrl = createSearchableSelect(
+    'recipeToolsWrapper', 'recipeToolsSearch', 'recipeToolsDropdown',
+    () => (get('tools')||[]).map(t => ({id: t.id, name: t.name})),
+    () => {}
+  );
+}
+
 /* ---------- helpers & storage ---------- */
 const get = k => JSON.parse(localStorage.getItem(k) || 'null') || [];
 const set = (k,v) => localStorage.setItem(k, JSON.stringify(v));
@@ -787,29 +946,121 @@ function openRecipeModal(){
   recipeModal.show();
 }
 
-function addIngredientRow(data={}){
-  if(!ingredientList) return;
-  const used=[...ingredientList.querySelectorAll('select')].map(s=>s.value).filter(Boolean);
-  const items = allItemsCombined();
-  const available = items.filter(it=>!used.includes(it.id));
-  if(available.length===0){ addIngredientBtn.disabled=true; return; } else addIngredientBtn.disabled=false;
-  const div=document.createElement('div'); div.className='d-flex mb-1';
-  const sel=document.createElement('select'); sel.className='form-select form-select-sm me-1';
-  available.forEach(it=>{ const o=document.createElement('option'); o.value=it.id; o.textContent=it.name; sel.appendChild(o); });
-  if(data.id){
-    const exists=[...sel.options].some(o=>o.value===data.id);
-    if(!exists){ const found=allItemsCombined().find(x=>x.id===data.id); if(found){ const opt=document.createElement('option'); opt.value=found.id; opt.textContent=found.name; sel.insertBefore(opt, sel.firstChild); } }
-    sel.value=data.id;
+function addIngredientRow(data = {}) {
+  if (!ingredientList) return;
+
+  const div = document.createElement('div');
+  div.className = 'd-flex mb-2 align-items-center ingredient-row';
+
+  // Suchbares Feld für Zutat
+  const selectWrapper = document.createElement('div');
+  selectWrapper.className = 'searchable-select flex-grow-1 me-2';
+  selectWrapper.innerHTML = `
+    <input type="text" class="ingredient-search form-control form-control-sm" placeholder="Zutat suchen..." autocomplete="off">
+    <div class="dropdown-menu ingredient-dropdown" style="max-height:250px; overflow-y:auto;"></div>
+  `;
+
+  const searchInput = selectWrapper.querySelector('.ingredient-search');
+  const dropdown = selectWrapper.querySelector('.ingredient-dropdown');
+
+  // Mengenfeld
+  const qtyInput = document.createElement('input');
+  qtyInput.type = 'number';
+  qtyInput.min = '1';
+  qtyInput.value = data.amount || 1;
+  qtyInput.className = 'form-control form-control-sm me-2 qty-input';
+  qtyInput.style.width = '90px';
+
+  // Löschen-Button
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'btn btn-sm btn-danger';
+  delBtn.innerHTML = '<i class="bi bi-trash"></i>';
+  delBtn.onclick = () => { div.remove(); updateIngredientBtn(); };
+
+  div.appendChild(selectWrapper);
+  div.appendChild(qtyInput);
+  div.appendChild(delBtn);
+  ingredientList.appendChild(div);
+
+  // --- Suchlogik ---
+  let selectedId = data.id || '';
+
+  function renderIngredientDropdown(filter = '') {
+    dropdown.innerHTML = '';
+    const used = [...ingredientList.querySelectorAll('.ingredient-search')]
+                  .map(inp => inp.dataset.value)
+                  .filter(Boolean);
+
+    const available = allItemsCombined().filter(it => 
+      !used.includes(it.id) || it.id === selectedId
+    );
+
+    const filtered = available.filter(it => 
+      it.name.toLowerCase().includes(filter.toLowerCase())
+    );
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML = `<div class="dropdown-item text-muted">Keine Treffer</div>`;
+      return;
+    }
+
+    filtered.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'dropdown-item';
+      el.textContent = item.name;
+      el.onclick = () => {
+        searchInput.value = item.name;
+        searchInput.dataset.value = item.id;
+        selectedId = item.id;
+        dropdown.classList.remove('show');
+        updateIngredientBtn();
+      };
+      dropdown.appendChild(el);
+    });
   }
-  const amt=document.createElement('input'); amt.type='number'; amt.min='1'; amt.value=data.amount||1; amt.className='form-control form-control-sm me-1 qty-input';
-  const del=document.createElement('button'); del.type='button'; del.className='btn btn-sm btn-danger'; del.innerHTML='<i class="bi bi-trash"></i>';
-  del.onclick=()=>{ div.remove(); setTimeout(updateIngredientBtn,0); };
-  div.appendChild(sel); div.appendChild(amt); div.appendChild(del); ingredientList.appendChild(div); updateIngredientBtn();
+
+  // Events
+  searchInput.addEventListener('focus', () => {
+    renderIngredientDropdown(searchInput.value);
+    dropdown.classList.add('show');
+  });
+
+  searchInput.addEventListener('input', () => {
+    renderIngredientDropdown(searchInput.value);
+    dropdown.classList.add('show');
+  });
+
+  // Klick außerhalb schließen
+  document.addEventListener('click', function closeDropdown(e) {
+    if (!selectWrapper.contains(e.target)) {
+      dropdown.classList.remove('show');
+    }
+  });
+
+  // Vorbelegung beim Editieren
+  if (data.id) {
+    const item = allItemsCombined().find(i => i.id === data.id);
+    if (item) {
+      searchInput.value = item.name;
+      searchInput.dataset.value = item.id;
+      selectedId = item.id;
+    }
+  }
+
+  updateIngredientBtn();
 }
-function updateIngredientBtn(){ 
-  const used=[...ingredientList.querySelectorAll('select')].map(s=>s.value).filter(Boolean); 
-  const available=allItemsCombined().filter(it=>!used.includes(it.id)); 
-  addIngredientBtn.disabled = available.length===0; 
+
+function updateIngredientBtn() {
+  const addBtn = document.getElementById('addIngredientBtn');
+  if (!addBtn) return;
+
+  const used = [...ingredientList.querySelectorAll('.ingredient-search')]
+                .map(inp => inp.dataset.value)
+                .filter(Boolean);
+
+  const available = allItemsCombined().filter(it => !used.includes(it.id));
+  addBtn.disabled = available.length === 0;
 }
 
 function hasCycle(targetId, ingredients, visited=new Set()){
@@ -827,26 +1078,50 @@ function hasCycle(targetId, ingredients, visited=new Set()){
 
 function saveRecipe(e){
   if(e && e.preventDefault) e.preventDefault();
-  const idxStr=document.getElementById('recipeIndex').value;
-  const idx = (idxStr==='')?null:parseInt(idxStr,10);
-  const name=document.getElementById('recipeName').value.trim(); if(!name){ showToast('Name erforderlich','error'); return; }
-  const duration=document.getElementById('recipeDuration').value.trim();
-  const output=parseInt(document.getElementById('recipeOutput').value)||1;
-  const locationId=document.getElementById('recipeLocation').value||'';
-  const toolVal=document.getElementById('recipeTools').value || '';
-  const toolSel = toolVal ? [toolVal] : [];
+
+  const idxStr = document.getElementById('recipeIndex').value;
+  const idx = (idxStr === '') ? null : parseInt(idxStr, 10);
+
+  const name = document.getElementById('recipeName').value.trim();
+  if(!name){ showToast('Name erforderlich','error'); return; }
+
+  const duration = document.getElementById('recipeDuration').value.trim();
+  const output = parseInt(document.getElementById('recipeOutput').value) || 1;
+
+  // Neue suchbare Felder auslesen
+  const locationId = locationSelectCtrl ? locationSelectCtrl.getValue() : '';
+  const toolId = toolSelectCtrl ? toolSelectCtrl.getValue() : '';
+  const toolSel = toolId ? [toolId] : [];
+
   const sellPriceStr = document.getElementById('recipeSellPrice').value.trim();
   const sellPriceTradeStr = document.getElementById('recipeSellPriceTrade').value.trim();
   const sellPrice = sellPriceStr ? parseFloat(sellPriceStr) : null;
   const sellPriceTrade = sellPriceTradeStr ? parseFloat(sellPriceTradeStr) : null;
 
-  const ingredientDivs=[...ingredientList.querySelectorAll('div')];
-  const ingredients=ingredientDivs.map(d=>{ const s=d.querySelector('select'); const a=d.querySelector('input'); return {id:s.value, amount:Math.max(1, parseInt(a.value)||1)}; });
-  if(ingredients.length===0){ showToast('Mindestens eine Zutat erforderlich','error'); return; }
+  // Zutaten auslesen
+  const ingredientDivs = [...ingredientList.querySelectorAll('.ingredient-row')];
+  const ingredients = ingredientDivs.map(div => {
+    const searchInput = div.querySelector('.ingredient-search');
+    const qtyInput = div.querySelector('input[type="number"]');
+    const id = searchInput ? searchInput.dataset.value : null;
+    const amount = qtyInput ? Math.max(1, parseInt(qtyInput.value)||1) : 1;
+    return {id, amount};
+  }).filter(ing => ing.id); // nur valide Einträge
+
+  if(ingredients.length === 0){
+    showToast('Mindestens eine Zutat erforderlich','error'); 
+    return; 
+  }
+
   const recipes = get('recipes')||[]; 
   let recipeId = uuid(); 
-  if(idx!==null && recipes[idx] && recipes[idx].id) recipeId = recipes[idx].id;
-  if(hasCycle(recipeId, ingredients)){ showToast('Zyklus erkannt — Speichern abgebrochen','error'); return; }
+  if(idx !== null && recipes[idx] && recipes[idx].id) recipeId = recipes[idx].id;
+
+  if(hasCycle(recipeId, ingredients)){
+    showToast('Zyklus erkannt — Speichern abgebrochen','error'); 
+    return; 
+  }
+
   const recipeObj = { 
     id: recipeId, 
     name, 
@@ -858,7 +1133,10 @@ function saveRecipe(e){
     sellPrice,
     sellPriceTrade
   };
-  if(idx===null) recipes.push(recipeObj); else recipes[idx] = recipeObj;
+
+  if(idx === null) recipes.push(recipeObj); 
+  else recipes[idx] = recipeObj;
+
   set('recipes', recipes); 
   recipeModal.hide(); 
   renderRecipes(); 
@@ -947,24 +1225,38 @@ function renderRecipes(filter=''){
 }
 
 function toggleDetail(idx){ const el=document.getElementById(`recipe-detail-${idx}`); if(!el) return; el.classList.toggle('hidden'); }
+
 function editRecipe(idx){ 
-  const recipes=get('recipes')||[]; 
-  const r=recipes[idx]; 
+  const recipes = get('recipes')||[]; 
+  const r = recipes[idx]; 
   if(!r) return showToast('Nicht gefunden','error'); 
-  document.getElementById('recipeIndex').value=String(idx); 
-  document.getElementById('recipeName').value=r.name; 
-  document.getElementById('recipeDuration').value=r.duration||''; 
-  document.getElementById('recipeOutput').value=r.output||1; 
+
+  document.getElementById('recipeIndex').value = String(idx); 
+  document.getElementById('recipeName').value = r.name; 
+  document.getElementById('recipeDuration').value = r.duration || ''; 
+  document.getElementById('recipeOutput').value = r.output || 1; 
   document.getElementById('recipeSellPrice').value = r.sellPrice !== null && r.sellPrice !== undefined ? r.sellPrice : '';
   document.getElementById('recipeSellPriceTrade').value = r.sellPriceTrade !== null && r.sellPriceTrade !== undefined ? r.sellPriceTrade : '';
-  updateRecipeLocationSelect(); 
-  updateRecipeToolSelect(); 
-  document.getElementById('recipeLocation').value = r.locationId || ''; 
-  document.getElementById('recipeTools').value = (r.tools && r.tools.length) ? r.tools[0] : ''; 
-  ingredientList.innerHTML=''; 
-  (r.ingredients||[]).forEach(ing=>addIngredientRow(ing)); 
+
+  // Neue suchbare Felder befüllen
+  if (locationSelectCtrl) {
+    const loc = (get('locations')||[]).find(l => l.id === r.locationId);
+    locationSelectCtrl.setValue(r.locationId, loc ? loc.name : '');
+  }
+
+  if (toolSelectCtrl) {
+    const toolId = (r.tools && r.tools.length) ? r.tools[0] : '';
+    const tool = (get('tools')||[]).find(t => t.id === toolId);
+    toolSelectCtrl.setValue(toolId, tool ? tool.name : '');
+  }
+
+  // Zutaten
+  ingredientList.innerHTML = ''; 
+  (r.ingredients || []).forEach(ing => addIngredientRow(ing)); 
+
   recipeModal.show(); 
 }
+
 function deleteRecipe(idx){ 
   if(!confirm('Rezept löschen? Referenzen in anderen Rezepten werden entfernt.')) return; 
   const recipes=get('recipes')||[]; 
@@ -981,30 +1273,25 @@ function deleteRecipe(idx){
 const calcCart = []; // {id, qty}
 const existingItems = []; // {id, qty}
 
-function fillCalcRecipeSelect(){
-  const sel=document.getElementById('calcRecipeSelect'); sel.innerHTML=''; const inCart=new Set(calcCart.map(c=>c.id));
-  (get('recipes')||[]).forEach(r=>{ if(inCart.has(r.id)) return; const o=document.createElement('option'); o.value=r.id; o.textContent=r.name; sel.appendChild(o); });
-  if(!sel.options.length) sel.innerHTML='<option value="">(keine verfügbaren Rezepte)</option>';
+function updateCalcSelects(){
+  renderCalcCart();
+  renderExistingList();
 }
 
-function fillExistingItemSelect(){
-  const sel=document.getElementById('existingItemSelect'); sel.innerHTML=''; const existingSet=new Set(existingItems.map(e=>e.id));
-  allBaseItems().forEach(b=>{ if(existingSet.has(b.id)) return; const o=document.createElement('option'); o.value=b.id; o.textContent=b.name+' (Basis)'; sel.appendChild(o); });
-  allRecipesRef().forEach(r=>{ if(existingSet.has(r.id)) return; const o=document.createElement('option'); o.value=r.id; o.textContent=r.name+' (Rezept)'; sel.appendChild(o); });
-  if(!sel.options.length) sel.innerHTML='<option value="">(keine verfügbaren Items)</option>';
-}
+function calcAddToList() {
+  const id = recipeSelectCtrl.getValue();
+  if (!id) {
+    showToast('Bitte ein Rezept auswählen', 'error');
+    return;
+  }
+  const qty = Math.max(1, parseInt(document.getElementById('calcQty').value)||1);
+  const ex = calcCart.find(x=>x.id===id);
+  if (ex) ex.qty += qty;
+  else calcCart.push({id, qty});
 
-function updateCalcSelects(){ fillCalcRecipeSelect(); fillExistingItemSelect(); renderCalcCart(); renderExistingList(); }
-
-function calcAddToList(){ 
-  const sel=document.getElementById('calcRecipeSelect'); 
-  const qty=Math.max(1, parseInt(document.getElementById('calcQty').value)||1); 
-  const id=sel.value; 
-  if(!id){ showToast('Kein Rezept ausgewählt','error'); return; } 
-  const ex=calcCart.find(x=>x.id===id); 
-  if(ex) ex.qty+=qty; else calcCart.push({id,qty}); 
-  renderCalcCart(); 
-  updateCalcSelects(); 
+  renderCalcCart();
+  updateCalcSelects();
+  recipeSelectCtrl.clear();
 }
 
 function renderCalcCart(){
@@ -1047,15 +1334,20 @@ function updateCartQty(i,v){ calcCart[i].qty=Math.max(1,parseInt(v)||1); renderC
 function removeCartItem(i){ calcCart.splice(i,1); renderCalcCart(); updateCalcSelects(); }
 
 /* EXISTING list */
-function addExistingItem(){ 
-  const sel=document.getElementById('existingItemSelect'); 
-  const qty=Math.max(1, parseInt(document.getElementById('existingQty').value)||1); 
-  const id=sel.value; 
-  if(!id){ showToast('Kein Item ausgewählt','error'); return; } 
-  const ex=existingItems.find(x=>x.id===id); 
-  if(ex) ex.qty+=qty; else existingItems.push({id,qty}); 
-  renderExistingList(); 
-  updateCalcSelects(); 
+function addExistingItem() {
+  const id = existingItemCtrl.getValue();
+  if (!id) {
+    showToast('Bitte ein Item auswählen', 'error');
+    return;
+  }
+  const qty = Math.max(1, parseInt(document.getElementById('existingQty').value)||1);
+  const ex = existingItems.find(x=>x.id===id);
+  if (ex) ex.qty += qty;
+  else existingItems.push({id, qty});
+
+  renderExistingList();
+  updateCalcSelects();
+  existingItemCtrl.clear();
 }
 
 function renderExistingList(){
@@ -1802,10 +2094,18 @@ window.addEventListener('load', () => {
       bsTab.show();
     }
   }
+  initSearchableSelects();
+  renderBaseItems(); 
+  renderTools(); 
+  renderLocations(); 
+  renderRecipes(); 
+  updateCalcSelects();
+  renderTransactions();
+  renderAccountingSummary();
 });
 
 /* initial render */
-renderBaseItems(); 
+/*renderBaseItems(); 
 renderTools(); 
 renderLocations(); 
 renderRecipes(); 
@@ -1813,7 +2113,7 @@ updateRecipeToolSelect();
 updateRecipeLocationSelect(); 
 updateCalcSelects();
 renderTransactions();
-renderAccountingSummary();
+renderAccountingSummary();*/
 
 </script>
 </body>
